@@ -18,7 +18,7 @@ public:
 
     static GLuint createShaderProgram(const char * str, const char * text);
 
-    static GLuint  genTexture(int width, int height, int nrChannels, std::string path);
+    static GLuint  genTexture(std::string path);
 };
 
 
