@@ -14,7 +14,9 @@
 #include "../../../libs/glm/gtc/type_ptr.hpp"
 #include "util/GenericUtil.h"
 #include <string>
+#include "../../../libs/json.hpp"
 
+#include "util/ModelUtil.h"
 #include "util/Shader.h"
 //the bin folder contents needs to be copied!
 
@@ -25,6 +27,8 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 int window_width = 800;
 int window_height = 600;
 int stride = 8;
+boolean lockCursor = true;
+boolean lockCursorP = false;
 glm::vec3 playerPos(0.0f, 0.0f, -3.0f);
 glm::vec2 playerRotation(0, 0);
 
@@ -55,8 +59,9 @@ int main() {
         return -1;
     }
 
-    Shader defaultShader("src/resources/shader/default/vertex_shader.glsl", "src/resources/shader/default/fragment_shader.glsl");
-    Shader lightEmitterShader("src/resources/shader/lighting/vertex_shader.glsl", "src/resources/shader/lighting/fragment_shader.glsl");
+    Shader defaultShader("default");
+    Shader lightEmitterShader("lighting");
+    Shader skyboxShader("skybox");
 
     float vertices[] = {
         // positions          // normals           // texture coords
@@ -102,6 +107,27 @@ int main() {
         -0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,  0.0f,  0.0f,
         -0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,  0.0f,  1.0f
     };
+
+    vector<glm::vec3> cubePositions = {
+        glm::vec3( 0.0f,  0.0f,  0.0f),
+        glm::vec3( 2.0f,  1.0f, -3.0f),
+        glm::vec3( 1.0f,  0.0f, -1.0f),
+    };
+
+    vector<glm::vec3> pointLightPositions = {};
+    vector<glm::vec3> pointLightColours = {};
+
+    for (int i = 0; i < 30; ++i) {
+        pointLightPositions.push_back(glm::vec3(GenericUtil::randomInt(-10, 10),  GenericUtil::randomInt(-10, 10),  GenericUtil::randomInt(-10, 10)));
+        pointLightColours.push_back(glm::vec3(GenericUtil::randomFloat(0, 1, 2),  GenericUtil::randomFloat(0, 1, 2),  GenericUtil::randomFloat(0, 1, 2)));
+    }
+
+    for (int i = 0; i < 4; ++i) {
+        for (int i2 = 0; i2 < 4; ++i2) {
+            cubePositions.push_back(glm::vec3(i,  i2,  2.0f));
+        }
+    }
+
     unsigned int VBO, cubeVAO;
     glGenVertexArrays(1, &cubeVAO);
     glGenBuffers(1, &VBO);
@@ -124,27 +150,37 @@ int main() {
     glGenVertexArrays(1, &lightCubeVAO);
     glBindVertexArray(lightCubeVAO);
 
-    // we only need to bind to the VBO (to link it with glVertexAttribPointer), no need to fill it; the VBO's data already contains all we need (it's already bound, but we do it again for educational purposes)
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    unsigned int skyboxVAO;
+    glGenVertexArrays(1, &skyboxVAO);
+    glBindVertexArray(skyboxVAO);
 
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
 
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, stride * sizeof(float), (void*)(6 * sizeof(float)));
+    glEnableVertexAttribArray(1);
 
-    // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
     GLuint texture = RenderUtil::genTexture("src/resources/textures/test.png");
     GLuint texture1 = RenderUtil::genTexture("src/resources/textures/test2.png");
     GLuint texture2 = RenderUtil::genTexture("src/resources/textures/test3.png");
 
+    GLuint skyboxTexture = RenderUtil::genTexture("src/resources/textures/skybox.png");
+
     defaultShader.use();
     defaultShader.setInt("material.diffuse", 0);
 
+    Model test = ModelUtil::getModel("src/resources/models/test.bplate");
+
     float speed = 0.1f;
-    glm::vec3 lightPos(1.2f, 1.0f, 2.0f);
+    glm::vec3 lightPos(1.5f, 1.0f, -2.3f);
 
     while (!glfwWindowShouldClose(window)) {
+        glfwSetInputMode(window, GLFW_CURSOR, lockCursor ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
         glm::vec3 front;
         front.x = cos(glm::radians(playerRotation.y)) * sin(glm::radians(playerRotation.x));
         front.y = sin(glm::radians(playerRotation.y));
@@ -165,7 +201,18 @@ int main() {
             playerPos -= flatRight * speed;
         if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
             playerPos += flatRight * speed;
-
+        if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
+            playerPos.y = playerPos.y + speed;
+        if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
+            playerPos.y = playerPos.y - speed;
+        if (glfwGetKey(window, GLFW_KEY_T) == GLFW_PRESS) {
+            if (!lockCursorP) {
+                lockCursorP = true;
+                lockCursor = !lockCursor;
+            }
+        } else {
+            lockCursorP = false;
+        }
 
         auto model = glm::mat4(1.0f);
         auto view = glm::mat4(1.0f);
@@ -181,11 +228,35 @@ int main() {
         defaultShader.setInt("material.emissive", 2);
         defaultShader.setFloat("material.shininess", 64.0f);
 
-        defaultShader.setVec3("light.ambient", 0.2f, 0.2f, 0.2f);
-        defaultShader.setVec3("light.diffuse", 0.5f, 0.5f, 0.5f);
-        defaultShader.setVec3("light.specular", 1.0f, 1.0f, 1.0f);
-        defaultShader.setVec3("light.position", lightPos);
+        for(unsigned int i = 0; i < std::size(pointLightPositions); i++) {
+            string id = "pointLights[";
+            id.append(std::to_string(i));
 
+            string section = id;
+            defaultShader.setVec3(("pointLights[" + std::to_string(i) + "].position"), pointLightPositions[0]);
+            section = id;
+            defaultShader.setVec3(("pointLights[" + std::to_string(i) + "].ambient"), 0.05f, 0.05f, 0.05f);
+            section = id;
+            defaultShader.setVec3(("pointLights[" + std::to_string(i) + "].diffuse"), pointLightColours[i]);
+            section = id;
+            defaultShader.setVec3(("pointLights[" + std::to_string(i) + "].specular"), 1.0f, 1.0f, 1.0f);
+            section = id;
+            defaultShader.setFloat(("pointLights[" + std::to_string(i) + "].constant"), 1.0f);
+            section = id;
+            defaultShader.setFloat(("pointLights[" + std::to_string(i) + "].linear"), 0.09f);
+            section = id;
+            defaultShader.setFloat(("pointLights[" + std::to_string(i) + "].quadratic"), 0.032f);
+        }
+
+        glm::vec3 sunDir = glm::vec3(0.0f, 0.0f, 0.0f);
+        sunDir = GenericUtil::moveVec3(sunDir, -10,  1.0f + glfwGetTime() * 20.0f, 0);
+
+        defaultShader.setVec3("dirLight.direction", sunDir);
+        defaultShader.setVec3("dirLight.ambient", 0.01f, 0.01f, 0.01f);
+        defaultShader.setVec3("dirLight.diffuse", 0.7f, 0.4f, 0.4f);
+        defaultShader.setVec3("dirLight.specular", 0.5f, 0.5f, 0.5f);
+
+        defaultShader.setInt("pointLightsAmount", pointLightPositions.size());
 
         defaultShader.setMat4("projection", projection);
         defaultShader.setMat4("view", view);
@@ -204,29 +275,53 @@ int main() {
         glBindTexture(GL_TEXTURE_2D, texture2);
 
         glBindVertexArray(cubeVAO);
-        glDrawArrays(GL_TRIANGLES, 0, 36);
+
+        for(unsigned int i = 0; i < std::size(cubePositions); i++) {
+            glm::mat4 model = glm::mat4(1.0f);
+            model = glm::translate(model, cubePositions[i]);
+            float angle = i;
+            defaultShader.setMat4("model", model);
+
+            glDrawArrays(GL_TRIANGLES, 0, 36);
+        }
+
+        test.Draw(defaultShader);
+        // glDrawArrays(GL_TRIANGLES, 0, 36);
 
         lightEmitterShader.use();
         lightEmitterShader.setMat4("projection", projection);
         lightEmitterShader.setMat4("view", view);
-        auto model1 = glm::mat4(1.0f);
-        model1 = glm::translate(model1, lightPos);
-        model1 = glm::scale(model1, glm::vec3(0.2f)); // a smaller cube
-        // lightEmitterShader.setMat4("model", model1);
-
-        // for(unsigned int i = 0; i < 10; i++)
-        // {
-        //     glm::mat4 model = glm::mat4(1.0f);
-        //     //model = glm::translate(model, cubePositions[i]);
-        //     float angle = 20.0f * i;
-        //     model = glm::rotate(model, glm::radians(angle), glm::vec3(1.0f, 0.3f, 0.5f));
-        //     lightEmitterShader.setMat4("model", model);
-        //
-        //     glDrawArrays(GL_TRIANGLES, 0, 36);
-        // }
 
         glBindVertexArray(lightCubeVAO);
+
+
+        for(unsigned int i = 0; i < std::size(pointLightPositions); i++) {
+            glm::mat4 model1 = glm::mat4(1.0f);
+            model1 = glm::translate(model1, pointLightPositions[i]);
+            model1 = glm::scale(model1, glm::vec3(0.2f));
+            lightEmitterShader.setMat4("model", model1);
+            lightEmitterShader.setVec3("lightColour", pointLightColours[i]);
+
+            glDrawArrays(GL_TRIANGLES, 0, 36);
+        }
+
+//temp
+        skyboxShader.use();
+        skyboxShader.setInt("asset", 0);
+        skyboxShader.setMat4("projection", projection);
+        skyboxShader.setMat4("view", view);
+        auto model2 = glm::mat4(1.0f);
+        model2 = glm::scale(model2, glm::vec3(-100));
+        skyboxShader.setMat4("model", model2);
+
+        glBindVertexArray(skyboxVAO);
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, skyboxTexture);
+
         glDrawArrays(GL_TRIANGLES, 0, 36);
+
+        glDepthMask(TRUE);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
@@ -257,15 +352,20 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
 }
 
 void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
-    int windowX;
-    int windowY;
-    glfwGetWindowPos(window, &windowX, &windowY);
+    if (lockCursor) {
+        int windowX;
+        int windowY;
+        float maxSensitivity = 50.0f;
+        float sensitivity = 50.0f;
+        glfwGetWindowPos(window, &windowX, &windowY);
 
-    playerRotation.x -= (xpos-(windowX+window_width / 2)) / 50.0f;
-    playerRotation.y -= (ypos-(windowY+window_height / 2)) / 50.0f;
+        //we dont wan NaN from /0
+        playerRotation.x -= (xpos-(windowX+window_width / 2)) / max(maxSensitivity - sensitivity, 1.0f) / 20;
+        playerRotation.y -= (ypos-(windowY+window_height / 2)) / max(maxSensitivity - sensitivity, 1.0f) / 20;
 
-    playerRotation.x = glm::mod(playerRotation.x, 360.0f);
-    playerRotation.y = glm::clamp(playerRotation.y, -89.0f, 89.0f);
+        playerRotation.x = glm::mod(playerRotation.x, 360.0f);
+        playerRotation.y = glm::clamp(playerRotation.y, -89.0f, 89.0f);
 
-    glfwSetCursorPos(window, windowX+window_width / 2, windowY+window_height / 2);
+        glfwSetCursorPos(window, windowX+window_width / 2, windowY+window_height / 2);
+    }
 }

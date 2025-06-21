@@ -27,6 +27,18 @@ int GenericUtil::randomInt(int min, int max) {
     return min + generator() % (max - min + 1);
 }
 
+float GenericUtil::randomFloat(float min, float max) {
+    return randomFloat(min, max, 8);
+}
+
+float GenericUtil::randomFloat(float min, float max, int decimals) {
+    float divider = 1;
+    for (int i = 0; i < decimals; ++i) {
+        divider *= 10;
+    }
+    return randomInt(min*divider, max*divider)/divider;
+}
+
 glm::vec3 GenericUtil::moveVec3(glm::vec3 vec, double acceleration, float pitch, float yaw) {
     double yawRad = glm::radians(yaw);
     double pitchRad = glm::radians(pitch);

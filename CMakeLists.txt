@@ -16,7 +16,10 @@ add_executable(
         src/c/util/GenericUtil.cpp
         src/c/util/GenericUtil.h
         libs/stb_image.h
-        src/c/util/Shader.h
+        libs/json.hpp
+        src/c/util/ModelUtil.cpp
+        src/c/util/ModelUtil.h
+        src/c/util/Mesh.h
 )
 
 file(COPY src/resources DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/src)
