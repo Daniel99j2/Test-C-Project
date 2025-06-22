@@ -161,7 +161,7 @@ int main() {
 
     defaultShader.use();
 
-    RenderUtil::genOrLoadAtlas("src/resources/textures", "output/atlas_main.png", "output/atlas_main.json", "output/atlas_mer.png", "output/atlas_mer.json", true);
+    RenderUtil::genOrLoadAtlas("src/resources/textures", "output/atlas_main.png", "output/atlas_main.json", "output/atlas_mer.png", "output/atlas_mer.json", false);
     glm::vec2 originalUV = {0.5f, 0.5f};
     glm::vec2 atlasUV = RenderUtil::getUV("test4.png", originalUV);
 
@@ -211,13 +211,13 @@ int main() {
 
         auto model = glm::mat4(1.0f);
         auto view = glm::mat4(1.0f);
-        view = glm::lookAt(playerPos, playerPos + front, up);
+        view = glm::lookAt(playerPos + glm::vec3(0, 1.8, 0), playerPos + glm::vec3(0, 1.8, 0) + front, up);
 
         glm::mat4 projection;
         projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f);
 
         defaultShader.use();
-        defaultShader.setVec3("viewPos", playerPos);
+        defaultShader.setVec3("viewPos", playerPos + glm::vec3(0, 1.8, 0));
 
 
         for(unsigned int i = 0; i < std::size(pointLightPositions); i++) {

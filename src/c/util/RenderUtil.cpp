@@ -261,7 +261,7 @@ void RenderUtil::genOrLoadAtlas(const std::string &folder, const std::string &at
     };
 
     std::vector<ImageData> images;
-    for (auto &entry: std::filesystem::directory_iterator(folder)) {
+    for (auto &entry: std::filesystem::recursive_directory_iterator(folder)) {
         if (entry.path().extension() == ".png") {
             std::string path = entry.path().string();
             int w, h, c;
