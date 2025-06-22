@@ -108,24 +108,12 @@ int main() {
         -0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,  0.0f,  1.0f
     };
 
-    vector<glm::vec3> cubePositions = {
-        glm::vec3( 0.0f,  0.0f,  0.0f),
-        glm::vec3( 2.0f,  1.0f, -3.0f),
-        glm::vec3( 1.0f,  0.0f, -1.0f),
-    };
-
     vector<glm::vec3> pointLightPositions = {};
     vector<glm::vec3> pointLightColours = {};
 
-    for (int i = 0; i < 30; ++i) {
+    for (int i = 0; i < 20; ++i) {
         pointLightPositions.push_back(glm::vec3(GenericUtil::randomInt(-10, 10),  GenericUtil::randomInt(-10, 10),  GenericUtil::randomInt(-10, 10)));
         pointLightColours.push_back(glm::vec3(GenericUtil::randomFloat(0, 1, 2),  GenericUtil::randomFloat(0, 1, 2),  GenericUtil::randomFloat(0, 1, 2)));
-    }
-
-    for (int i = 0; i < 4; ++i) {
-        for (int i2 = 0; i2 < 4; ++i2) {
-            cubePositions.push_back(glm::vec3(i,  i2,  2.0f));
-        }
     }
 
     unsigned int VBO, cubeVAO;
@@ -165,16 +153,15 @@ int main() {
 
     //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
-    GLuint texture = RenderUtil::genTexture("src/resources/textures/test.png");
-    GLuint texture1 = RenderUtil::genTexture("src/resources/textures/test2.png");
-    GLuint texture2 = RenderUtil::genTexture("src/resources/textures/test3.png");
+    GLuint texture = RenderUtil::genTexture("src/resources/textures/test");
+    GLuint texture1 = RenderUtil::genTexture("src/resources/textures/test2");
+    GLuint texture2 = RenderUtil::genTexture("src/resources/textures/test3");
 
-    GLuint skyboxTexture = RenderUtil::genTexture("src/resources/textures/skybox.png");
+    GLuint skyboxTexture = RenderUtil::genTexture("src/resources/textures/skybox");
 
     defaultShader.use();
-    defaultShader.setInt("material.diffuse", 0);
 
-    Model test = ModelUtil::getModel("src/resources/models/test.bplate");
+    Model test = ModelUtil::getModel("src/resources/models/hello.bbmodel");
 
     float speed = 0.1f;
     glm::vec3 lightPos(1.5f, 1.0f, -2.3f);
@@ -223,10 +210,7 @@ int main() {
 
         defaultShader.use();
         defaultShader.setVec3("viewPos", playerPos);
-        defaultShader.setInt("material.diffuse", 0);
-        defaultShader.setInt("material.specular", 1);
-        defaultShader.setInt("material.emissive", 2);
-        defaultShader.setFloat("material.shininess", 64.0f);
+
 
         for(unsigned int i = 0; i < std::size(pointLightPositions); i++) {
             string id = "pointLights[";
@@ -265,26 +249,6 @@ int main() {
         glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, texture);
-
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, texture1);
-
-        glActiveTexture(GL_TEXTURE2);
-        glBindTexture(GL_TEXTURE_2D, texture2);
-
-        glBindVertexArray(cubeVAO);
-
-        for(unsigned int i = 0; i < std::size(cubePositions); i++) {
-            glm::mat4 model = glm::mat4(1.0f);
-            model = glm::translate(model, cubePositions[i]);
-            float angle = i;
-            defaultShader.setMat4("model", model);
-
-            glDrawArrays(GL_TRIANGLES, 0, 36);
-        }
-
         test.Draw(defaultShader);
         // glDrawArrays(GL_TRIANGLES, 0, 36);
 
@@ -310,6 +274,8 @@ int main() {
         skyboxShader.setInt("asset", 0);
         skyboxShader.setMat4("projection", projection);
         skyboxShader.setMat4("view", view);
+        float test1 = 1.0f/fmod(glfwGetTime(), 10.0f);
+        skyboxShader.setFloat("lightness", test1);
         auto model2 = glm::mat4(1.0f);
         model2 = glm::scale(model2, glm::vec3(-100));
         skyboxShader.setMat4("model", model2);

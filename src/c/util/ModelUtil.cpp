@@ -29,22 +29,30 @@ Model ModelUtil::getModel(const char *filePath) {
     nlohmann::json data = nlohmann::json::parse(buffer.str());
 
     vector<Mesh> meshes;
-    vector<Texture> textures;
+    int texture;
+    int mer;
 
     for (auto &i: data["textures"]) {
-        Texture texture = Texture();
-        texture.type = i["render_mode"];
-        std::string key = "textures\\";
-        std::string path = i["path"];
-        std::string out = "error";
+        if (i["pbr_channel"] == "color") {
+            std::string key = "textures\\";
+            std::string path = i["path"];
+            std::string out = "error";
 
-        size_t pos = path.rfind(key);
-        if (pos != std::string::npos) {
-            out = path.substr(pos + key.length());
+            size_t pos = path.rfind(key);
+            if (pos != std::string::npos) {
+                out = path.substr(pos + key.length());
+
+                const std::string extension = ".png";
+                if (out.size() >= extension.size() &&
+                    out.compare(out.size() - extension.size(), extension.size(), extension) == 0) {
+                    out = out.substr(0, out.size() - extension.size());
+                    }
+            }
+
+            texture = RenderUtil::genTexture(("src/resources/textures/" + out));
+            mer = RenderUtil::genPBR(("src/resources/textures/" + out));
+            break;
         }
-
-        texture.id = RenderUtil::genTexture(("src/resources/textures/" + out));
-        textures.push_back(texture);
     }
 
     for (auto &i: data["elements"]) {
@@ -103,7 +111,7 @@ Model ModelUtil::getModel(const char *filePath) {
             }
         }
 
-        meshes.push_back(Mesh(vertices, indices, textures));
+        meshes.push_back(Mesh(vertices, indices, texture, mer));
     }
 
     return Model(meshes);

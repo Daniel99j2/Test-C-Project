@@ -15,6 +15,7 @@
 #include "../../../libs/glm/ext/scalar_constants.hpp"
 #define STB_IMAGE_IMPLEMENTATION
 #include "../../../libs/stb_image.h"
+#include "libs/json.hpp"
 
 using namespace std;
 
@@ -64,6 +65,7 @@ GLuint RenderUtil::createShaderProgram(const char* vertexSrc, const char* fragme
 }
 
 GLuint RenderUtil::genTexture(string path) {
+    path = path + ".png";
     unsigned int textureID;
     glGenTextures(1, &textureID);
 
@@ -90,10 +92,32 @@ GLuint RenderUtil::genTexture(string path) {
 
         stbi_image_free(data);
     }
-    else
-    {
+    else {
         std::cout << "Texture failed to load at path: " << path << std::endl;
         stbi_image_free(data);
     }
     return textureID;
+}
+
+//use an image path. Returns -1 if null
+GLuint RenderUtil::genPBR(string path) {
+    path = path + ".texture_set.json";
+    ifstream file(path);
+    if (!file.is_open()) {
+        return -1;
+    }
+
+    stringstream buffer;
+    buffer << file.rdbuf();
+    nlohmann::json data = nlohmann::json::parse(buffer.str());
+
+    string path1 = "";
+
+    size_t pos = path.find_last_of('/');
+
+    if (pos != std::string::npos) {
+        path1 = path.substr(0, pos + 1);
+    }
+
+    return genTexture((path1 + static_cast<string>(data["minecraft:texture_set"]["metalness_emissive_roughness"])));
 }

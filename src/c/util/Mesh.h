@@ -41,47 +41,34 @@ inline bool operator<(const Vertex& a, const Vertex& b) {
     return a.TexCoords.y < b.TexCoords.y;
 }
 
-struct Texture {
-    unsigned int id;
-    string type;
-};
-
 class Mesh {
 public:
     // mesh data
     vector<Vertex>       vertices;
     vector<unsigned int> indices;
-    vector<Texture>      textures;
+    unsigned int      texture;
+    unsigned int mer = 0;
 
-    Mesh(vector<Vertex> vertices, vector<unsigned int> indices, vector<Texture> textures) {
+    Mesh(vector<Vertex> vertices, vector<unsigned int> indices, unsigned int texture, unsigned int mer) {
         this->vertices = vertices;
         this->indices = indices;
-        this->textures = textures;
+        this->texture = texture;
+        this->mer = mer;
 
         setupMesh();
     }
 
     void Draw(Shader &shader) {
-        unsigned int diffuseNr = 1;
-        unsigned int specularNr = 1;
-        for(unsigned int i = 0; i < textures.size(); i++)
-        {
-            glActiveTexture(GL_TEXTURE0 + i);
-            string number;
-            string name = textures[i].type;
-            if(name == "default")
-                number = std::to_string(diffuseNr++);
-            else if(name == "additive")
-                number = std::to_string(specularNr++);
-
-            string name1 = "error";
-            if (name == "default") name1 = "texture_diffuse";
-            if (name == "additive") name1 = "texture_specular";
-
-            shader.setInt(("material." + name1 + number).c_str(), i);
-            glBindTexture(GL_TEXTURE_2D, textures[i].id);
-        }
         glActiveTexture(GL_TEXTURE0);
+        shader.setInt("material.diffuse", 0);
+        glBindTexture(GL_TEXTURE_2D, texture);
+
+        if (mer != -1) {
+            shader.setInt("material.merEnabled", 1);
+            glActiveTexture(GL_TEXTURE1);
+            shader.setInt("material.mer", 1);
+            glBindTexture(GL_TEXTURE_2D, mer);
+        } else shader.setInt("material.merEnabled", 0);
 
         // draw mesh
         glBindVertexArray(VAO);
