@@ -16,6 +16,7 @@ add_executable(
         src/c/util/GenericUtil.cpp
         src/c/util/GenericUtil.h
         libs/stb_image.h
+        libs/stb_image_write.h
         libs/json.hpp
         src/c/util/ModelUtil.cpp
         src/c/util/ModelUtil.h

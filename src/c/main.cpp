@@ -161,7 +161,13 @@ int main() {
 
     defaultShader.use();
 
-    Model test = ModelUtil::getModel("src/resources/models/hello.bbmodel");
+    //Model test = ModelUtil::getModel("src/resources/models/hello.bbmodel");
+
+    RenderUtil::genOrLoadAtlas("src/resources/textures", "output/atlas.png", "output/atlas.json", true);
+    glm::vec2 originalUV = {0.5f, 0.5f};
+    glm::vec2 atlasUV = RenderUtil::getUV("test4.png", originalUV);
+
+    cout << atlasUV.x << " " << atlasUV.y << endl;
 
     float speed = 0.1f;
     glm::vec3 lightPos(1.5f, 1.0f, -2.3f);
@@ -249,7 +255,7 @@ int main() {
         glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        test.Draw(defaultShader);
+        //test.Draw(defaultShader);
         // glDrawArrays(GL_TRIANGLES, 0, 36);
 
         lightEmitterShader.use();

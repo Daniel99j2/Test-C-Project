@@ -29,7 +29,6 @@ Model ModelUtil::getModel(const char *filePath) {
     nlohmann::json data = nlohmann::json::parse(buffer.str());
 
     vector<Mesh> meshes;
-    int texture;
     int mer;
 
     for (auto &i: data["textures"]) {
