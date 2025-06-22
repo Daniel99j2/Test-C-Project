@@ -161,11 +161,11 @@ int main() {
 
     defaultShader.use();
 
-    //Model test = ModelUtil::getModel("src/resources/models/hello.bbmodel");
-
-    RenderUtil::genOrLoadAtlas("src/resources/textures", "output/atlas.png", "output/atlas.json", true);
+    RenderUtil::genOrLoadAtlas("src/resources/textures", "output/atlas_main.png", "output/atlas_main.json", "output/atlas_mer.png", "output/atlas_mer.json", true);
     glm::vec2 originalUV = {0.5f, 0.5f};
     glm::vec2 atlasUV = RenderUtil::getUV("test4.png", originalUV);
+
+    Model test = ModelUtil::getModel("src/resources/models/hello.bbmodel");
 
     cout << atlasUV.x << " " << atlasUV.y << endl;
 
@@ -207,6 +207,8 @@ int main() {
             lockCursorP = false;
         }
 
+        //pointLightPositions[0] = glm::vec3(playerPos.x, playerPos.y - 1.0f, playerPos.z);
+
         auto model = glm::mat4(1.0f);
         auto view = glm::mat4(1.0f);
         view = glm::lookAt(playerPos, playerPos + front, up);
@@ -219,22 +221,12 @@ int main() {
 
 
         for(unsigned int i = 0; i < std::size(pointLightPositions); i++) {
-            string id = "pointLights[";
-            id.append(std::to_string(i));
-
-            string section = id;
             defaultShader.setVec3(("pointLights[" + std::to_string(i) + "].position"), pointLightPositions[0]);
-            section = id;
             defaultShader.setVec3(("pointLights[" + std::to_string(i) + "].ambient"), 0.05f, 0.05f, 0.05f);
-            section = id;
             defaultShader.setVec3(("pointLights[" + std::to_string(i) + "].diffuse"), pointLightColours[i]);
-            section = id;
             defaultShader.setVec3(("pointLights[" + std::to_string(i) + "].specular"), 1.0f, 1.0f, 1.0f);
-            section = id;
             defaultShader.setFloat(("pointLights[" + std::to_string(i) + "].constant"), 1.0f);
-            section = id;
             defaultShader.setFloat(("pointLights[" + std::to_string(i) + "].linear"), 0.09f);
-            section = id;
             defaultShader.setFloat(("pointLights[" + std::to_string(i) + "].quadratic"), 0.032f);
         }
 
@@ -255,7 +247,7 @@ int main() {
         glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        //test.Draw(defaultShader);
+        test.Draw(defaultShader);
         // glDrawArrays(GL_TRIANGLES, 0, 36);
 
         lightEmitterShader.use();

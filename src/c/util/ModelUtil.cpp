@@ -29,30 +29,25 @@ Model ModelUtil::getModel(const char *filePath) {
     nlohmann::json data = nlohmann::json::parse(buffer.str());
 
     vector<Mesh> meshes;
-    int mer;
-
-    for (auto &i: data["textures"]) {
-        if (i["pbr_channel"] == "color") {
-            std::string key = "textures\\";
-            std::string path = i["path"];
-            std::string out = "error";
-
-            size_t pos = path.rfind(key);
-            if (pos != std::string::npos) {
-                out = path.substr(pos + key.length());
-
-                const std::string extension = ".png";
-                if (out.size() >= extension.size() &&
-                    out.compare(out.size() - extension.size(), extension.size(), extension) == 0) {
-                    out = out.substr(0, out.size() - extension.size());
-                    }
-            }
-
-            texture = RenderUtil::genTexture(("src/resources/textures/" + out));
-            mer = RenderUtil::genPBR(("src/resources/textures/" + out));
-            break;
-        }
-    }
+    // for (auto &i: data["textures"]) {
+    //     if (i["pbr_channel"] == "color") {
+    //         std::string key = "textures\\";
+    //         std::string path = i["path"];
+    //         std::string out = "error";
+    //
+    //         size_t pos = path.rfind(key);
+    //         if (pos != std::string::npos) {
+    //             out = path.substr(pos + key.length());
+    //
+    //             const std::string extension = ".png";
+    //             if (out.size() >= extension.size() &&
+    //                 out.compare(out.size() - extension.size(), extension.size(), extension) == 0) {
+    //                 out = out.substr(0, out.size() - extension.size());
+    //                 }
+    //         }
+    //         break;
+    //     }
+    // }
 
     for (auto &i: data["elements"]) {
         map<Vertex, int> vertexMap;
@@ -92,6 +87,22 @@ Model ModelUtil::getModel(const char *filePath) {
                     static_cast<float>(uvArr[0]) / static_cast<int>(data["textures"][data1]["uv_width"]),
                     static_cast<float>(uvArr[1]) / static_cast<int>(data["textures"][data1]["uv_height"])
                 );
+
+                std::string key = "textures\\";
+                std::string path = data["textures"][data1]["path"];
+                std::string out = "error";
+
+                size_t pos = path.rfind(key);
+                if (pos != std::string::npos) {
+                    out = path.substr(pos + key.length());
+
+                    const std::string extension = ".png";
+                    if (out.size() >= extension.size() &&
+                        out.compare(out.size() - extension.size(), extension.size(), extension) == 0) {
+                        out = out.substr(0, out.size() - extension.size());
+                    }
+                }
+                uvs[vname] = RenderUtil::getUV((out+".png"), uvs[vname]);
             }
 
             //loop xyz
@@ -110,7 +121,7 @@ Model ModelUtil::getModel(const char *filePath) {
             }
         }
 
-        meshes.push_back(Mesh(vertices, indices, texture, mer));
+        meshes.push_back(Mesh(vertices, indices));
     }
 
     return Model(meshes);

@@ -5,6 +5,8 @@
 #ifndef RENDERUTIL_H
 #define RENDERUTIL_H
 #include <chrono>
+#include <unordered_map>
+
 #include "../../../libs/glew/include/GL/glew.h"
 #include "../../../libs/glm/mat4x4.hpp"
 #include "../../../libs/glm/ext/matrix_transform.hpp"
@@ -22,7 +24,12 @@ public:
 
     static GLuint genPBR(std::string path);
 
-    static GLuint genOrLoadAtlas(const std::string &folder, const std::string &atlasPng, const std::string &atlasMeta, bool forceRegenerate);
+    static void genOrLoadAtlas(const std::string &folder, const std::string &atlasPng, const std::string &atlasMeta,
+                                 const std::string &merPng, const std::string &merMeta, bool forceRegenerate);
+
+    static GLuint getAtlas();
+
+    static GLuint getMERAtlas();
 
     static glm::vec2 getUV(const std::string& texturePath, const glm::vec2& originalUV);
 

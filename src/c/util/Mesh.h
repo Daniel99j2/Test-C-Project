@@ -46,14 +46,10 @@ public:
     // mesh data
     vector<Vertex>       vertices;
     vector<unsigned int> indices;
-    unsigned int      texture;
-    unsigned int mer = 0;
 
-    Mesh(vector<Vertex> vertices, vector<unsigned int> indices, unsigned int texture, unsigned int mer) {
+    Mesh(vector<Vertex> vertices, vector<unsigned int> indices) {
         this->vertices = vertices;
         this->indices = indices;
-        this->texture = texture;
-        this->mer = mer;
 
         setupMesh();
     }
@@ -61,16 +57,12 @@ public:
     void Draw(Shader &shader) {
         glActiveTexture(GL_TEXTURE0);
         shader.setInt("material.diffuse", 0);
-        glBindTexture(GL_TEXTURE_2D, texture);
+        glBindTexture(GL_TEXTURE_2D, RenderUtil::getAtlas());
 
-        if (mer != -1) {
-            shader.setInt("material.merEnabled", 1);
-            glActiveTexture(GL_TEXTURE1);
-            shader.setInt("material.mer", 1);
-            glBindTexture(GL_TEXTURE_2D, mer);
-        } else shader.setInt("material.merEnabled", 0);
+        glActiveTexture(GL_TEXTURE1);
+        shader.setInt("material.mer", 1);
+        glBindTexture(GL_TEXTURE_2D, RenderUtil::getMERAtlas());
 
-        // draw mesh
         glBindVertexArray(VAO);
         glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
         glBindVertexArray(0);

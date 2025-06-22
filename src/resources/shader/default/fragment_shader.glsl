@@ -4,7 +4,6 @@ out vec4 FragColor;
 struct Material {
     sampler2D diffuse;
     sampler2D mer;
-    int merEnabled;
 };
 
 struct DirLight {
@@ -47,12 +46,10 @@ void main() {
     float emissive = 0.0;
     float roughness = 1.0;
 
-    if (material.merEnabled == 1) {
-        vec3 mer = texture(material.mer, TexCoords).rgb;
-        metallic = clamp(mer.r, 0.0, 1.0);
-        emissive = clamp(mer.g, 0.0, 1.0);
-        roughness = clamp(mer.b, 0.05, 1.0);
-    }
+    vec3 mer = texture(material.mer, TexCoords).rgb;
+    metallic = clamp(mer.r, 0.0, 1.0);
+    emissive = clamp(mer.g, 0.0, 1.0);
+    roughness = clamp(mer.b, 0.05, 1.0);
 
     vec3 result = CalcDirLight(dirLight, norm, viewDir, baseColor, metallic, roughness);
     for(int i = 0; i < pointLightsAmount; i++)
