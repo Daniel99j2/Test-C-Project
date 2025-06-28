@@ -1,10 +1,8 @@
 #include "RenderUtil.h"
 
 #include <iostream>
-#include <chrono>
 #include <random>
 #include "../../../libs/glew/include/GL/glew.h"
-#include <GLFW/glfw3.h>
 #include <fstream>
 #include <sstream>
 #include "../../../libs/glm/vec3.hpp"
@@ -14,10 +12,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "../../../libs/stb_image.h"
 #include "libs/json.hpp"
-#include <libs/json.hpp>
 #include <filesystem>
-#include <fstream>
-#include <iostream>
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <../../../libs/stb_image_write.h>
 
@@ -132,7 +127,7 @@ GLuint RenderUtil::genPBR(string path) {
 }
 
 glm::vec2 RenderUtil::getUV(const std::string &path, const glm::vec2 &originalUV) {
-    if (atlasRegions.empty()) throw("Cannot access atlas before creation!!!");
+    if (atlasRegions.empty()) throw std::runtime_error("Cannot access atlas before creation!!!");
 
     std::string key = std::filesystem::path(path).generic_string(); // normalize to use forward slashes
     auto it = atlasRegions.find("src/resources/textures/" + key);
@@ -191,8 +186,8 @@ unsigned char *loadMERTextureOrFallback(const std::string &basePath, int &w, int
 }
 
 void RenderUtil::genOrLoadAtlas(const std::string &folder, const std::string &atlasPng, const std::string &atlasMeta,
-                                  const std::string &merPng, const std::string &merMeta, bool forceRegenerate) {
-        if (!forceRegenerate) {
+                                const std::string &merPng, const std::string &merMeta, bool forceRegenerate) {
+    if (!forceRegenerate) {
         int w1, h1, c1, w2, h2, c2;
         unsigned char *atlasData = stbi_load(atlasPng.c_str(), &w1, &h1, &c1, 4);
         unsigned char *merData = stbi_load(merPng.c_str(), &w2, &h2, &c2, 4);
@@ -201,7 +196,8 @@ void RenderUtil::genOrLoadAtlas(const std::string &folder, const std::string &at
             atlasWidth = w1;
             atlasHeight = h1;
 
-            auto readMeta = [](const std::string &path, std::unordered_map<std::string, RenderUtil::AtlasRegion> &regions) {
+            auto readMeta = [](const std::string &path,
+                               std::unordered_map<std::string, RenderUtil::AtlasRegion> &regions) {
                 std::ifstream in(path);
                 if (!in.is_open()) return false;
 
@@ -210,7 +206,7 @@ void RenderUtil::genOrLoadAtlas(const std::string &folder, const std::string &at
 
                 if (!j.contains("textures")) return false;
 
-                for (auto &[k, v] : j["textures"].items()) {
+                for (auto &[k, v]: j["textures"].items()) {
                     glm::vec2 uvMin = {v["uvMin"][0], v["uvMin"][1]};
                     glm::vec2 uvMax = {v["uvMax"][0], v["uvMax"][1]};
                     regions[k] = {
@@ -227,7 +223,8 @@ void RenderUtil::genOrLoadAtlas(const std::string &folder, const std::string &at
                 auto uploadTex = [](GLuint &id, unsigned char *data) {
                     glGenTextures(1, &id);
                     glBindTexture(GL_TEXTURE_2D, id);
-                    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, atlasWidth, atlasHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+                    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, atlasWidth, atlasHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+                                 data);
                     glGenerateMipmap(GL_TEXTURE_2D);
                     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
                     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -362,7 +359,8 @@ void RenderUtil::genOrLoadAtlas(const std::string &folder, const std::string &at
     delete[] atlasData;
     delete[] merData;
 
-    auto writeMeta = [](const std::string &path, const std::unordered_map<std::string, RenderUtil::AtlasRegion> &regions) {
+    auto writeMeta = [](const std::string &path,
+                        const std::unordered_map<std::string, RenderUtil::AtlasRegion> &regions) {
         nlohmann::json j;
         j["atlasWidth"] = atlasWidth;
         j["atlasHeight"] = atlasHeight;

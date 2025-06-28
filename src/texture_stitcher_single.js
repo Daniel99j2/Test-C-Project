@@ -1,9 +1,10 @@
-(function() {
+(function () {
     var button;
-    var createRect = (x, y, w, h) => { return {x, y, w, h}; };
+    var createRect = (x, y, w, h) => {
+        return {x, y, w, h};
+    };
 
-    function packBoxes(boxes, padding)
-    {
+    function packBoxes(boxes, padding) {
         var areas = [];
         var w = getInitialWidth(boxes, padding);
         var finalW = 0;
@@ -12,14 +13,11 @@
         boxes.sort((a, b) => b.h - a.h);
         areas.push(createRect(0, 0, w, Number.MAX_VALUE));
 
-        boxes.forEach((box) =>
-        {
-            for (var i = areas.length - 1; i >= 0; i--)
-            {
+        boxes.forEach((box) => {
+            for (var i = areas.length - 1; i >= 0; i--) {
                 var area = areas[i];
 
-                if (box.w > area.w || box.h > area.h)
-                {
+                if (box.w > area.w || box.h > area.h) {
                     continue;
                 }
 
@@ -29,29 +27,21 @@
                 finalH = Math.max(finalH, box.y + box.h);
                 finalW = Math.max(finalW, box.x + box.w);
 
-                if (box.w == area.w && box.h == area.h)
-                {
+                if (box.w == area.w && box.h == area.h) {
                     var last = areas.pop();
 
-                    if (i < areas.length)
-                    {
+                    if (i < areas.length) {
                         areas.set(i, last);
                     }
-                }
-                else if (box.h == area.h)
-                {
+                } else if (box.h == area.h) {
                     area.x += box.w;
                     area.w -= box.w;
 
-                }
-                else if (box.w == area.w)
-                {
+                } else if (box.w == area.w) {
                     area.y += box.h;
                     area.h -= box.h;
 
-                }
-                else
-                {
+                } else {
                     areas.push(createRect(area.x + box.w, area.y, area.w - box.w, box.h));
 
                     area.y += box.h;
@@ -63,10 +53,8 @@
         });
 
         /* Remove padding from boxes and add them to the final area */
-        if (padding != 0)
-        {
-            boxes.forEach(glyph =>
-            {
+        if (padding != 0) {
+            boxes.forEach(glyph => {
                 glyph.w -= padding;
                 glyph.h -= padding;
                 glyph.x += padding;
@@ -80,13 +68,11 @@
         return [finalW, finalH];
     }
 
-    function getInitialWidth(glyphs, padding)
-    {
+    function getInitialWidth(glyphs, padding) {
         var totalArea = 0;
         var maxW = 0;
 
-        glyphs.forEach(box =>
-        {
+        glyphs.forEach(box => {
             box.w += padding;
             box.h += padding;
 
@@ -97,17 +83,14 @@
         return Math.max(Math.ceil(Math.sqrt(totalArea)), maxW);
     }
 
-    function calculateRects(userPadding)
-    {
+    function calculateRects(userPadding) {
         var rects = [];
         var maxScale = 1;
         var minScale = 1;
         var resize = false;
 
-        Cube.selected.forEach(c =>
-        {
-            if (c.box_uv)
-            {
+        Cube.selected.forEach(c => {
+            if (c.box_uv) {
                 resize = true;
             }
         });
@@ -160,8 +143,7 @@
         };
     }
 
-    function stitchSingleTextures(userPadding)
-    {
+    function stitchSingleTextures(userPadding) {
         const data = calculateRects(userPadding);
         const rects = data.rects;
 
@@ -174,39 +156,33 @@
         rects.forEach(rect => drawToCanvas(c, rect));
 
         const config = {
-            type: 'image/png' 
+            type: 'image/png'
         };
 
         offscreen.convertToBlob(config).then(blob => {
             var reader = new FileReader();
-            
+
             reader.readAsDataURL(blob);
             reader.onloadend = () => replaceTextures(data, reader.result);
         });
     }
 
-    function drawToCanvas(c, rect)
-    {
+    function drawToCanvas(c, rect) {
         c.drawImage(rect.texture.img, rect.x, rect.y, rect.w, rect.h)
     }
 
-    function replaceTextures(data, imageData)
-    {
+    function replaceTextures(data, imageData) {
         var maxScale = data.max_scale, resize = data.resize;
         var rects = data.rects, w = data.w, h = data.h;
 
-        if (resize)
-        {
+        if (resize) {
             w /= maxScale;
             h /= maxScale;
         }
 
-        const getRect = texture_uuid =>
-        {
-            for (var i = 0; i < rects.length; i++)
-            {
-                if (rects[i].texture.uuid === texture_uuid)
-                {
+        const getRect = texture_uuid => {
+            for (var i = 0; i < rects.length; i++) {
+                if (rects[i].texture.uuid === texture_uuid) {
                     return rects[i];
                 }
             }
@@ -218,7 +194,7 @@
         var texture = new Texture({
             mode: 'bitmap',
             name: 'stiched_texture',
-            keep_size : true
+            keep_size: true
         });
 
         var ts = [];
@@ -229,13 +205,13 @@
                 Object.values(cube.faces).some(face => face.texture === texture.uuid)
             );
             if (texture.selected || texture.multi_selected || used) {
-            ts.push(texture)
-        }});
+                ts.push(texture)
+            }
+        });
 
         var elems = Cube.selected;
 
-        if (Mesh)
-        {
+        if (Mesh) {
             elems = elems.concat(Mesh.selected);
         }
 
@@ -258,72 +234,58 @@
         Project.texture_width = w;
         Project.texture_height = h;
 
-        Cube.selected.forEach(cube =>
-        {
+        Cube.selected.forEach(cube => {
             var toApplySides = [];
 
-            if (cube.box_uv)
-            {
+            if (cube.box_uv) {
                 var north = cube.faces['north'];
                 var rect = getRect(north.texture);
 
-                if (rect != null)
-                {
+                if (rect != null) {
                     cube.uv_offset[0] += rect.x / maxScale;
                     cube.uv_offset[1] += rect.y / maxScale;
                 }
 
                 toApplySides = north.texture !== false;
-            }
-            else
-            {
-                sides.forEach(side =>
-                {
+            } else {
+                sides.forEach(side => {
                     var face = cube.faces[side];
                     var rect = getRect(face.texture);
-    
-                    if (rect !== null)
-                    {
+
+                    if (rect !== null) {
                         var mx = resize ? 1 : rect.uv_scale;
                         var my = resize ? 1 : rect.uv_scale;
-    
+
                         face.uv[0] = face.uv[0] * mx + rect.x / (resize ? maxScale : 1);
                         face.uv[1] = face.uv[1] * my + rect.y / (resize ? maxScale : 1);
                         face.uv[2] = face.uv[2] * mx + rect.x / (resize ? maxScale : 1);
                         face.uv[3] = face.uv[3] * my + rect.y / (resize ? maxScale : 1);
-    
-                        if (face.texture !== false)
-                        {
+
+                        if (face.texture !== false) {
                             toApplySides.push(side);
                         }
                     }
                 });
             }
 
-            if (toApplySides !== false)
-            {
+            if (toApplySides !== false) {
                 cube.applyTexture(texture, toApplySides);
             }
         });
 
-        if (Mesh)
-        {
-            Mesh.selected.forEach(mesh =>
-            {
+        if (Mesh) {
+            Mesh.selected.forEach(mesh => {
                 var applied = false;
 
-                Object.keys(mesh.faces).forEach(key =>
-                {
+                Object.keys(mesh.faces).forEach(key => {
                     var face = mesh.faces[key];
                     var rect = getRect(face.texture);
 
-                    if (!rect)
-                    {
+                    if (!rect) {
                         return;
                     }
 
-                    Object.keys(face.uv).forEach(key => 
-                    {
+                    Object.keys(face.uv).forEach(key => {
                         var uv = face.uv[key];
                         var mx = resize ? 1 : rect.uv_scale;
                         var my = resize ? 1 : rect.uv_scale;
@@ -335,8 +297,7 @@
                     });
                 });
 
-                if (applied)
-                {
+                if (applied) {
                     mesh.applyTexture(texture, true);
                 }
             });
@@ -358,8 +319,7 @@
                 value: 1
             }
         },
-        onConfirm(formData) 
-        {
+        onConfirm(formData) {
             this.hide();
 
             stitchSingleTextures(formData.padding >= 0 ? formData.padding : 0)
@@ -376,23 +336,20 @@
         tags: ["Texture"],
         variant: 'both',
         has_changelog: true,
-        onload() 
-        {
+        onload() {
             button = new Action('texture_stitcher_single', {
                 name: 'Stitch selected textures',
                 category: 'tools',
                 description: 'Stitch selected textures into single texture (you might want to make a back up of the project)',
                 icon: 'fa-compress-arrows-alt',
-                click()
-                {
+                click() {
                     stitchSingleDialog.show();
                 }
             });
 
             MenuBar.addAction(button, 'tools');
         },
-        onunload() 
-        {
+        onunload() {
             button.delete();
         }
     });

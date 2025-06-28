@@ -6,22 +6,25 @@
 #include <iostream>
 #include <chrono>
 #include <random>
-#include "../../../libs/glew/include/GL/glew.h"
 #include "../../../libs/json.hpp"
+// ReSharper disable once CppUnusedIncludeDirective
+#include "../../../libs/glew/include/GL/glew.h"
 #include <GLFW/glfw3.h>
 #include <fstream>
 #include <sstream>
-
-#include "Model.h"
+#include "../util/Model.h"
 
 using namespace std;
 
+map<std::string, Model> models = {};
 
-Model ModelUtil::getModel(const char *filePath) {
-    ifstream file(filePath);
+Model invalidModel = Model();
+
+Model ModelUtil::genModel(string filePath) {
+    ifstream file(("src/resources/models/" + filePath + ".bbmodel"));
     if (!file.is_open()) {
         cerr << "Failed to open model file: " << filePath << endl;
-        throw;
+        throw std::runtime_error("Failed to open model file");
     }
 
     stringstream buffer;
@@ -102,7 +105,7 @@ Model ModelUtil::getModel(const char *filePath) {
                         out = out.substr(0, out.size() - extension.size());
                     }
                 }
-                uvs[vname] = RenderUtil::getUV((out+".png"), uvs[vname]);
+                uvs[vname] = RenderUtil::getUV((out + ".png"), uvs[vname]);
             }
 
             //loop xyz
@@ -124,5 +127,139 @@ Model ModelUtil::getModel(const char *filePath) {
         meshes.push_back(Mesh(vertices, indices));
     }
 
-    return Model(meshes);
+    auto m = Model(meshes);
+    models.insert({filePath, m});
+    saveCBModel(("output/compiled_models/" + filePath + ".cbmodel"), m);
+    return m;
+}
+
+void ModelUtil::loadModels(bool forceRegen) {
+    //INSANE peformace increase... 200,000 faces goes from 20-30 secs to >2.5 secs (does not apply to startup/generation)
+    if (!forceRegen) {
+        std::filesystem::create_directories(std::filesystem::path("output/compiled_models/"));
+        for (auto &entry: std::filesystem::recursive_directory_iterator("output/compiled_models/")) {
+            if (entry.path().extension() == ".cbmodel") {
+                auto model = loadCBModel(entry.path().generic_string());
+                if (model.meshes.size() == 0) {
+                    cerr << "Failed to load CB model: " << entry.path().generic_string() << endl;
+                } else {
+                    std::string key = "compiled_models/";
+                    std::string path = entry.path().generic_string();
+                    std::string out = "error";
+
+                    size_t pos = path.rfind(key);
+                    if (pos != std::string::npos) {
+                        out = path.substr(pos + key.length());
+
+                        const std::string extension = ".cbmodel";
+                        if (out.size() >= extension.size() &&
+                            out.compare(out.size() - extension.size(), extension.size(), extension) == 0) {
+                            out = out.substr(0, out.size() - extension.size());
+                            }
+                    }
+
+                    if (model.meshes.size() != 0) {
+                        models.insert({out, model});
+                        saveCBModel((entry.path().generic_string()), model);
+                    }
+                }
+            }
+        }
+    }
+
+    for (auto &entry: std::filesystem::recursive_directory_iterator("src/resources/models/")) {
+        if (entry.path().extension() == ".bbmodel") {
+            std::string path = entry.path().string();
+            std::string key = "models/";
+            std::string out = "error";
+
+            size_t pos = path.rfind(key);
+            if (pos != std::string::npos) {
+                out = path.substr(pos + key.length());
+
+                const std::string extension = ".bbmodel";
+                if (out.size() >= extension.size() &&
+                    out.compare(out.size() - extension.size(), extension.size(), extension) == 0) {
+                    out = out.substr(0, out.size() - extension.size());
+                }
+            }
+            if (!models.contains(out)) genModel(out);
+        }
+    }
+}
+
+Model ModelUtil::getModel(string name) {
+    return models[name];
+}
+
+void ModelUtil::saveCBModel(const std::string &filepath, const Model &model) {
+    std::filesystem::create_directories(std::filesystem::path(filepath).parent_path());
+
+    std::ofstream out(filepath, std::ios::binary);
+    if (!out.is_open()) {
+        std::cerr << "Failed to open file for writing: " << filepath << std::endl;
+        return;
+    }
+
+    uint32_t verifier = 0x43424D44; //this can be anything, it is CBMD in binary, it checks if the file type is correct
+    out.write(reinterpret_cast<char *>(&verifier), sizeof(verifier));
+
+    uint32_t meshCount = model.meshes.size();
+    out.write(reinterpret_cast<char *>(&meshCount), sizeof(meshCount));
+
+    for (const Mesh &mesh: model.meshes) {
+        // we write the vertices
+        uint32_t vertexCount = mesh.vertices.size();
+        out.write(reinterpret_cast<char *>(&vertexCount), sizeof(vertexCount));
+        out.write(reinterpret_cast<const char *>(mesh.vertices.data()), vertexCount * sizeof(Vertex));
+
+        // we write the indices
+        uint32_t indexCount = mesh.indices.size();
+        out.write(reinterpret_cast<char *>(&indexCount), sizeof(indexCount));
+        out.write(reinterpret_cast<const char *>(mesh.indices.data()), indexCount * sizeof(uint32_t));
+    }
+
+    out.close();
+}
+
+Model ModelUtil::loadCBModel(const std::string &filepath) {
+    try {
+        std::ifstream in(filepath, std::ios::binary);
+        if (!in.is_open()) {
+            std::cerr << "Failed to open file for reading: " << filepath << std::endl;
+            return invalidModel;
+        }
+
+        uint32_t verifier;
+        //we check if it has the verifier text
+        in.read(reinterpret_cast<char *>(&verifier), sizeof(verifier));
+        if (verifier != 0x43424D44) {
+            std::cerr << "Invalid .cbmodel file format." << std::endl;
+            return invalidModel;
+        }
+
+        uint32_t meshCount;
+        in.read(reinterpret_cast<char *>(&meshCount), sizeof(meshCount));
+        std::vector<Mesh> meshes;
+
+        for (uint32_t i = 0; i < meshCount; ++i) {
+            uint32_t vertexCount;
+            in.read(reinterpret_cast<char *>(&vertexCount), sizeof(vertexCount));
+            std::vector<Vertex> vertices(vertexCount);
+            in.read(reinterpret_cast<char *>(vertices.data()), vertexCount * sizeof(Vertex));
+
+            uint32_t indexCount;
+            in.read(reinterpret_cast<char *>(&indexCount), sizeof(indexCount));
+            std::vector<unsigned int> indices(indexCount);
+            in.read(reinterpret_cast<char *>(indices.data()), indexCount * sizeof(uint32_t));
+
+            meshes.emplace_back(vertices, indices);
+        }
+
+        in.close();
+        return Model(meshes);
+    } catch (const std::exception &e) {
+        std::cerr << "Failed to read CBModel " << filepath << ": " << e.what() << std::endl;
+    };
+    return Model();
 }

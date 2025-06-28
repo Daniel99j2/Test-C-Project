@@ -1,31 +1,36 @@
-#ifndef SHADER_H
-#define SHADER_H
-
+#pragma once
 #include "../../../libs/glew/include/GL/glew.h"
+// ReSharper disable once CppUnusedIncludeDirective
+#include <GLFW/glfw3.h>
+// ReSharper disable once CppUnusedIncludeDirective
+#include "../../../libs/glm/glm.hpp"
 #include <string>
 #include <fstream>
 #include <sstream>
 #include <iostream>
+#include <utility>
 
 class Shader {
 public:
-    unsigned int ID;
-    const char* vertexPath;
-    const char* fragmentPath;
+    unsigned int ID{};
+    std::string vertexPath;
+    std::string fragmentPath;
 
-    Shader(const char* vertexPath, const char* fragmentPath) {
-        this->vertexPath = vertexPath;
-        this->fragmentPath = fragmentPath;
+    Shader() = default;
+
+    Shader(std::string vertexPath, std::string fragmentPath) {
+        this->vertexPath = std::move(vertexPath);
+        this->fragmentPath = std::move(fragmentPath);
         setup();
     }
 
-    Shader(const char* simplePath) {
+    explicit Shader(const std::string& simplePath) {
         std::string base = "src/resources/shader/";
         std::string vertex = base + simplePath + "/vertex_shader.glsl";
         std::string fragment = base + simplePath + "/fragment_shader.glsl";
 
-        this->vertexPath = vertex.c_str();
-        this->fragmentPath = fragment.c_str();
+        this->vertexPath = vertex;
+        this->fragmentPath = fragment;
         setup();
     }
 
@@ -97,7 +102,7 @@ public:
 private:
     // utility function for checking shader compilation/linking errors.
     // ------------------------------------------------------------------------
-    void checkCompileErrors(GLuint shader, std::string type)
+    static void checkCompileErrors(GLuint shader, const std::string& type)
     {
         GLint success;
         GLchar infoLog[1024];
@@ -175,4 +180,3 @@ private:
         glDeleteShader(fragment);
     }
 };
-#endif

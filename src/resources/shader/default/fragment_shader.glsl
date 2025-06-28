@@ -52,11 +52,10 @@ void main() {
     roughness = clamp(mer.b, 0.05, 1.0);
 
     vec3 result = CalcDirLight(dirLight, norm, viewDir, baseColor, metallic, roughness);
-    for(int i = 0; i < pointLightsAmount; i++)
+    for (int i = 0; i < pointLightsAmount; i++)
     result += CalcPointLight(pointLights[i], norm, FragPos, viewDir, baseColor, metallic, roughness);
 
     result += baseColor * emissive;
-
     FragColor = vec4(result, 1.0);
 }
 

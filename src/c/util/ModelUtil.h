@@ -2,18 +2,22 @@
 // Created by dj on 20/06/2025.
 //
 
-#ifndef MODELUTIL_H
-#define MODELUTIL_H
+#pragma once
 #include <string>
 #include <vector>
 
-#include "Model.h"
-
+class Model;
 
 class ModelUtil {
 public:
-    static Model getModel(const char *filePath);
+    static void loadModels(bool forceRegen);
+
+    static Model getModel(std::string name);
+
+private:
+    static Model genModel(std::string filePath);
+
+    static void saveCBModel(const std::string &filepath, const Model &model);
+
+    static Model loadCBModel(const std::string &filepath);
 };
-
-
-#endif //MODELUTIL_H

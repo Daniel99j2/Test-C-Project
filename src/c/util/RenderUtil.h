@@ -2,12 +2,12 @@
 // Created by dj on 13/06/2025.
 //
 
-#ifndef RENDERUTIL_H
-#define RENDERUTIL_H
+#pragma once
 #include <chrono>
 #include <unordered_map>
 
 #include "../../../libs/glew/include/GL/glew.h"
+#include <GLFW/glfw3.h>
 #include "../../../libs/glm/mat4x4.hpp"
 #include "../../../libs/glm/ext/matrix_transform.hpp"
 #include "../../../libs/glm/ext/matrix_clip_space.hpp"
@@ -39,7 +39,3 @@ public:
         int width, height;
     };
 };
-
-
-
-#endif //RENDERUTIL_H

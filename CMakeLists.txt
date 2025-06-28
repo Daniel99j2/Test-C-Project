@@ -21,9 +21,35 @@ add_executable(
         src/c/util/ModelUtil.cpp
         src/c/util/ModelUtil.h
         src/c/util/Mesh.h
+        src/c/objects/GameObject.cpp
+        src/c/objects/GameObject.h
+        src/c/objects/PhysicsEngine.cpp
+        src/c/objects/PhysicsEngine.h
+        src/c/objects/LivingObject.cpp
+        src/c/objects/LivingObject.h
+        src/c/objects/type/Player.cpp
+        src/c/objects/type/Player.h
+        src/c/world/World.cpp
+        src/c/world/World.h
+        src/c/util/GameConstants.h
+        src/c/util/GameConstants.cpp
+        src/c/objects/type/TestObject.cpp
+        src/c/objects/type/TestObject.h
+        src/c/util/Animation.h
 )
 
 file(COPY src/resources DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/src)
+
+# This makes it so the .dlls and libraries are in it
+set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++")
+
+# This makes it so the src folder is actually copied
+add_custom_target(copy_resources ALL
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/resources
+        ${CMAKE_CURRENT_BINARY_DIR}/src/resources
+        COMMENT "Copying sources"
+)
 
 target_link_libraries(Main PRIVATE glew)
 target_link_libraries(Main PRIVATE glfw)

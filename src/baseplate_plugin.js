@@ -4,7 +4,7 @@
     const property_name = 'baseplate'
     const removables = []
     const deletables = []
-    const default_value = { flags: [], json: null, shader: 'regular' }
+    const default_value = {flags: [], json: null, shader: 'regular'}
     const default_value_string = JSON.stringify(default_value)
     const baseplate_css = `
     .baseplate-widget {
@@ -117,7 +117,7 @@
         }
 
         setElementValue(name, value) {
-            console.log("setting "+name+" to "+value);
+            console.log("setting " + name + " to " + value);
             if (!this.elements || this.elements.length === 0) return
 
             const newProps = this.getProps()
@@ -131,7 +131,8 @@
             }
 
             this.props = newProps
-            Undo.initEdit({elements: []}); Undo.finishEdit('edit baseplate properties', {elements: this.elements});
+            Undo.initEdit({elements: []});
+            Undo.finishEdit('edit baseplate properties', {elements: this.elements});
         }
 
         update() {
@@ -171,7 +172,7 @@
             for (const control of this.controls) {
                 nodes.push(...control.nodes)
             }
-            this.node = Interface.createElement('div', { class: 'widget baseplate-widget' }, nodes)
+            this.node = Interface.createElement('div', {class: 'widget baseplate-widget'}, nodes)
         }
     }
 
@@ -189,8 +190,11 @@
         createJSONControl(value_name, options) {
             this.updateProps();
 
-            const code = this.jq_code = Interface.createElement('code', { class: 'language-json', id: 'highlighting-content' })
-            const textarea = this.jq_textarea = Interface.createElement('textarea', { class: 'dark_bordered focusable_input input-property' })
+            const code = this.jq_code = Interface.createElement('code', {
+                class: 'language-json',
+                id: 'highlighting-content'
+            })
+            const textarea = this.jq_textarea = Interface.createElement('textarea', {class: 'dark_bordered focusable_input input-property'})
             textarea.addEventListener('input', () => {
                 if (this.elements) {
                     const text = textarea.value
@@ -206,7 +210,7 @@
 
             const nodes = [
                 textarea,
-                Interface.createElement('pre', { id: 'highlighting', 'aria-hidden': true }, [
+                Interface.createElement('pre', {id: 'highlighting', 'aria-hidden': true}, [
                     code
                 ])
             ]
@@ -247,8 +251,8 @@
             this.updateProps();
 
             const div_flags = Interface.createElement('div', {})
-            const select = Interface.createElement('select', { class: 'baseplate-select' })
-            const select_control_box = Interface.createElement('div', { class: 'select_control_box' }, [div_flags, select])
+            const select = Interface.createElement('select', {class: 'baseplate-select'})
+            const select_control_box = Interface.createElement('div', {class: 'select_control_box'}, [div_flags, select])
 
             const redrawSelect = () => {
                 const props = this.getProps()
@@ -269,8 +273,11 @@
                                 break
                             }
                         }
-                        const delete_tag_button = Interface.createElement('span', { class: 'baseplate-delete-tag', 'data-value': value }, ['×'])
-                        div_flags.appendChild(Interface.createElement('span', { class: 'baseplate-tag' }, [title, delete_tag_button]))
+                        const delete_tag_button = Interface.createElement('span', {
+                            class: 'baseplate-delete-tag',
+                            'data-value': value
+                        }, ['×'])
+                        div_flags.appendChild(Interface.createElement('span', {class: 'baseplate-tag'}, [title, delete_tag_button]))
                         delete_tag_button.addEventListener('click', (e) => {
                             if (this.elements) {
                                 const value = e.srcElement.dataset.value
@@ -308,7 +315,11 @@
 
             redrawSelect()
 
-            return { update: () => { redrawSelect() }, nodes: [select_control_box] }
+            return {
+                update: () => {
+                    redrawSelect()
+                }, nodes: [select_control_box]
+            }
         }
 
     }
@@ -326,8 +337,8 @@
         createSelectPropertyControl(property_name, options) {
             this.update();
 
-            const select = Interface.createElement('select', { class: 'baseplate-select' })
-            const select_control_box = Interface.createElement('div', { class: 'select_control_box' }, [select])
+            const select = Interface.createElement('select', {class: 'baseplate-select'})
+            const select_control_box = Interface.createElement('div', {class: 'select_control_box'}, [select])
 
             const redrawSelect = () => {
                 const props = this.getProps()
@@ -356,7 +367,11 @@
 
             redrawSelect()
 
-            return { update: () => { redrawSelect() }, nodes: [select_control_box] }
+            return {
+                update: () => {
+                    redrawSelect()
+                }, nodes: [select_control_box]
+            }
         }
 
     }
@@ -443,13 +458,20 @@
 
             deletables.push(codec);
             // Create new property for all Cubes
-            deletables.push(new Property(MeshFace, 'instance', property_name, { default: null, exposed: true, label: "BasePlate custom properties" }))
+            deletables.push(new Property(MeshFace, 'instance', property_name, {
+                default: null,
+                exposed: true,
+                label: "BasePlate custom properties"
+            }))
             // CSS
             Blockbench.addCSS(baseplate_css)
             // Display
             initDisplay()
             // Create toolbars
-            createToolbar('BasePlate JSON', [new BasePlateJSONWidget('baseplate_cube_json_widget', { property_name, value_name: 'json' })])
+            createToolbar('BasePlate JSON', [new BasePlateJSONWidget('baseplate_cube_json_widget', {
+                property_name,
+                value_name: 'json'
+            })])
             createToolbar('BasePlate shader', [new BasePlateSelectWidget('baseplate_cube_shader_widget', {
                 property_name, value_name: 'shader', options: {
                     'Regular': 'regular',
@@ -484,6 +506,7 @@
 
             class BasePlateProject {
                 x
+
                 constructor(id) {
                     this.id = id
                     this.groups = {}
@@ -509,7 +532,7 @@
                 getGroup(name) {
                     let group = this.groups[name]
                     if (!group) {
-                        group = this.groups[name] = { folded: false }
+                        group = this.groups[name] = {folded: false}
                     }
                     return group
                 }
@@ -549,7 +572,7 @@
                         id: this.colors_key,
                         title: 'Enter JSON Colors',
                         form: {
-                            custom_text: { label: 'Colors', type: 'textarea', value: prop },
+                            custom_text: {label: 'Colors', type: 'textarea', value: prop},
                         },
                         onConfirm(form_result) {
                             prop = form_result.custom_text
@@ -590,7 +613,7 @@
                 }
 
                 toggleGroup(el, group_name, is_group) {
-                    const { input } = this
+                    const {input} = this
                     el.style.backgroundColor = is_group ? '#ffffff22' : 'revert-layer'
                     // toggler
                     let toggler = el.querySelector('.icon-open-state')

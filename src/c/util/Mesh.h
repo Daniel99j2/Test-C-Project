@@ -1,24 +1,13 @@
-#include <iostream>
-#include <chrono>
-#include <random>
-#include "../../../libs/glew/include/GL/glew.h"
-#include <GLFW/glfw3.h>
-#include <fstream>
-#include "RenderUtil.h"
-#include <windows.h>
+#pragma once
 #include "../../../libs/glm/vec3.hpp"
-#include "../../../libs/glm/mat4x4.hpp"
-#include "../../../libs/glm/ext/matrix_transform.hpp"
-#include "../../../libs/glm/ext/matrix_clip_space.hpp"
-#include "../../../libs/glm/glm.hpp"
-#include "../../../libs/glm/gtc/type_ptr.hpp"
-#include "GenericUtil.h"
-#include <string>
+#include "../../../libs/glm/vec2.hpp"
 
-#include "ModelUtil.h"
-#include "Shader.h"
-#ifndef MESH_H
-#define MESH_H
+#include "libs/glew/include/GL/glew.h"
+
+class GameConstants;
+class ModelUtil;
+class RenderUtil;
+class Shader;
 
 using namespace std;
 
@@ -28,7 +17,7 @@ struct Vertex {
     glm::vec2 TexCoords;
 };
 
-inline bool operator<(const Vertex& a, const Vertex& b) {
+inline bool operator<(const Vertex &a, const Vertex &b) {
     if (a.Position.x != b.Position.x) return a.Position.x < b.Position.x;
     if (a.Position.y != b.Position.y) return a.Position.y < b.Position.y;
     if (a.Position.z != b.Position.z) return a.Position.z < b.Position.z;
@@ -44,7 +33,7 @@ inline bool operator<(const Vertex& a, const Vertex& b) {
 class Mesh {
 public:
     // mesh data
-    vector<Vertex>       vertices;
+    vector<Vertex> vertices;
     vector<unsigned int> indices;
 
     Mesh(vector<Vertex> vertices, vector<unsigned int> indices) {
@@ -54,25 +43,17 @@ public:
         setupMesh();
     }
 
-    void Draw(Shader &shader) {
-        glActiveTexture(GL_TEXTURE0);
-        shader.setInt("material.diffuse", 0);
-        glBindTexture(GL_TEXTURE_2D, RenderUtil::getAtlas());
-
-        glActiveTexture(GL_TEXTURE1);
-        shader.setInt("material.mer", 1);
-        glBindTexture(GL_TEXTURE_2D, RenderUtil::getMERAtlas());
-
+    void draw() {
         glBindVertexArray(VAO);
         glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
         glBindVertexArray(0);
     };
+
 private:
     //  render data
     unsigned int VAO, VBO, EBO;
 
-    void setupMesh()
-    {
+    void setupMesh() {
         glGenVertexArrays(1, &VAO);
         glGenBuffers(1, &VBO);
         glGenBuffers(1, &EBO);
@@ -88,16 +69,14 @@ private:
 
         // vertex positions
         glEnableVertexAttribArray(0);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void *) 0);
         // vertex normals
         glEnableVertexAttribArray(1);
-        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, Normal));
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void *) offsetof(Vertex, Normal));
         // vertex texture coords
         glEnableVertexAttribArray(2);
-        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, TexCoords));
+        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void *) offsetof(Vertex, TexCoords));
 
         glBindVertexArray(0);
     }
 };
-
-#endif //MESH_H
