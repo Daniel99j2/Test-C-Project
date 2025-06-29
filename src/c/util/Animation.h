@@ -2,9 +2,13 @@
 // Created by dj on 28/06/2025.
 //
 #pragma once
+#include <unordered_set>
+#include <vector>
+#include "libs/glm/glm.hpp"
 
-enum class Channel : uint8_t { Position, Rotation, Scale };
-enum class Interpolation : uint8_t { Linear };
+enum Channel { Position, Rotation, Scale };
+enum Interpolation { Linear };
+enum LoopMode { Once, Loop, Hold };
 
 struct Vec3 {
     float x, y, z;
@@ -14,7 +18,7 @@ struct Keyframe {
     float time;
     Channel channel;
     Interpolation interpolation;
-    Vec3 value;
+    glm::vec3 value;
 };
 
 struct Animator {
@@ -25,6 +29,7 @@ struct Animator {
 struct Animation {
     std::string name;
     float length;
-    uint8_t loopMode; // 0 = none, 1 = loop, etc.
+    LoopMode loopMode;
     std::vector<Animator> animators;
+    std::unordered_set<std::string> allowedBones;
 };

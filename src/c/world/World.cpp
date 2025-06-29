@@ -6,9 +6,9 @@
 
 #include "src/c/objects/GameObject.h"
 
-void World::drawWorld() const {
+void World::drawWorld(float deltaTime) const {
     for (auto object : gameObjects) {
-        object->draw();
+        object->draw(deltaTime);
     }
 }
 

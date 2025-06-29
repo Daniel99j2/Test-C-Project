@@ -12,6 +12,8 @@
 #include <GLFW/glfw3.h>
 #include <fstream>
 #include <sstream>
+
+#include "Animation.h"
 #include "../util/Model.h"
 
 using namespace std;
@@ -20,7 +22,21 @@ map<std::string, Model> models = {};
 
 Model invalidModel = Model();
 
-Model ModelUtil::genModel(string filePath) {
+void writeString(std::ofstream &out, const std::string &str) {
+    uint32_t len = str.size();
+    out.write(reinterpret_cast<char*>(&len), sizeof(len));
+    out.write(str.c_str(), len);
+}
+
+std::string readString(std::ifstream &in) {
+    uint32_t len;
+    in.read(reinterpret_cast<char*>(&len), sizeof(len));
+    std::string str(len, '\0');
+    in.read(&str[0], len);
+    return str;
+}
+
+Model ModelUtil::genModel(const string& filePath) {
     ifstream file(("src/resources/models/" + filePath + ".bbmodel"));
     if (!file.is_open()) {
         cerr << "Failed to open model file: " << filePath << endl;
@@ -52,12 +68,14 @@ Model ModelUtil::genModel(string filePath) {
     //     }
     // }
 
+    //we load the elements
     for (auto &i: data["elements"]) {
         map<Vertex, int> vertexMap;
         vector<Vertex> vertices;
         vector<unsigned int> indices;
         int currentIndex = 0;
 
+        //blockbench's units are *16 of ours
         glm::vec3 origin(
             static_cast<float>(i["origin"][0]) / 16.0f,
             static_cast<float>(i["origin"][1]) / 16.0f,
@@ -72,6 +90,7 @@ Model ModelUtil::genModel(string filePath) {
             glm::vec3 vpos[3];
             for (int j = 0; j < 3; ++j) {
                 auto arr = vertexMapJson[vnames[j]];
+                //again, scale down
                 vpos[j] = glm::vec3(
                               float(arr[0]) / 16.0f,
                               float(arr[1]) / 16.0f,
@@ -86,6 +105,8 @@ Model ModelUtil::genModel(string filePath) {
             std::map<std::string, glm::vec2> uvs;
             for (auto &[vname, uvArr]: faceData["uv"].items()) {
                 int data1 = faceData["texture"];
+
+                //we change uv scale based on texture size
                 uvs[vname] = glm::vec2(
                     static_cast<float>(uvArr[0]) / static_cast<int>(data["textures"][data1]["uv_width"]),
                     static_cast<float>(uvArr[1]) / static_cast<int>(data["textures"][data1]["uv_height"])
@@ -124,10 +145,87 @@ Model ModelUtil::genModel(string filePath) {
             }
         }
 
-        meshes.push_back(Mesh(vertices, indices));
+        string boneName = "no_bone";
+
+        for (const auto& item : data["outliner"]) {
+            if (item.is_object()) {
+                for (const auto& child : item["children"]) {
+                    if (child == i["uuid"]) {
+                        boneName = item["name"];
+                    }
+                }
+            }
+        }
+        cout << boneName << endl;
+        meshes.push_back(Mesh(vertices, indices, boneName));
     }
 
-    auto m = Model(meshes);
+    //animations!!!
+    std::unordered_map<std::string, std::string> boneParents;
+    vector<Animation> animations;
+    for (const auto& animData : data["animations"]) {
+        Animation anim;
+        anim.name = animData["name"];
+        anim.length = animData["length"];
+        std::string loopStr = animData["loop"];
+
+        if (loopStr == "loop") anim.loopMode = Loop;
+        else if (loopStr == "once") anim.loopMode = Once;
+        else {cout << "Unknown loop type: " << loopStr << endl; anim.loopMode = Once;};
+
+        for (auto& [uuid, animatorData] : animData["animators"].items()) {
+            Animator animator;
+            animator.name = animatorData["name"];
+
+            anim.allowedBones.insert(animator.name);
+
+            for (const auto& kfData : animatorData["keyframes"]) {
+                Keyframe kf;
+                kf.time = kfData["time"];
+
+                std::string chStr = kfData["channel"];
+                if (chStr == "position") kf.channel = Channel::Position;
+                else if (chStr == "rotation") kf.channel = Channel::Rotation;
+                else if (chStr == "scale") kf.channel = Channel::Scale;
+                else {cout << "Unknown animation channel: " << chStr << endl; continue;};
+
+                kf.interpolation = Interpolation::Linear;
+                //TODO: Fix interpolation
+
+                auto dp = kfData["data_points"][0];
+                kf.value = {
+                    std::stof(static_cast<std::string>(dp["x"])),
+                    std::stof(static_cast<std::string>(dp["y"])),
+                    std::stof(static_cast<std::string>(dp["z"]))
+                };
+
+                if (kf.channel == Channel::Position) {kf.value /= 16.0f;}
+
+                animator.keyframes.push_back(kf);
+            }
+
+            anim.animators.push_back(animator);
+        }
+
+        animations.push_back(anim);
+    }
+
+    if (data.contains("outliner")) {
+        for (const auto& entry : data["outliner"]) {
+            if (entry.is_object()) {
+                std::string parentName = entry["name"];
+                if (entry.contains("children")) {
+                    for (const auto& child : entry["children"]) {
+                        if (child.is_object() && child.contains("name")) {
+                            boneParents[child["name"]] = parentName;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    auto m = Model(meshes, animations, boneParents);
     models.insert({filePath, m});
     saveCBModel(("output/compiled_models/" + filePath + ".cbmodel"), m);
     return m;
@@ -219,6 +317,49 @@ void ModelUtil::saveCBModel(const std::string &filepath, const Model &model) {
         out.write(reinterpret_cast<const char *>(mesh.indices.data()), indexCount * sizeof(uint32_t));
     }
 
+    uint32_t animCount = model.animations.size();
+    out.write(reinterpret_cast<char*>(&animCount), sizeof(animCount));
+
+    for (const Animation &anim : model.animations) {
+        writeString(out, anim.name);
+        out.write(reinterpret_cast<const char*>(&anim.length), sizeof(anim.length));
+        out.write(reinterpret_cast<const char*>(&anim.loopMode), sizeof(uint8_t));
+
+        uint32_t animatorCount = anim.animators.size();
+        out.write(reinterpret_cast<char*>(&animatorCount), sizeof(animatorCount));
+
+        for (const Animator &animator : anim.animators) {
+            writeString(out, animator.name);
+
+            uint32_t keyframeCount = animator.keyframes.size();
+            out.write(reinterpret_cast<char*>(&keyframeCount), sizeof(keyframeCount));
+
+            for (const Keyframe &kf : animator.keyframes) {
+                out.write(reinterpret_cast<const char*>(&kf.time), sizeof(kf.time));
+
+                uint8_t ch = static_cast<uint8_t>(kf.channel);
+                uint8_t interp = static_cast<uint8_t>(kf.interpolation);
+                out.write(reinterpret_cast<char*>(&ch), sizeof(ch));
+                out.write(reinterpret_cast<char*>(&interp), sizeof(interp));
+
+                out.write(reinterpret_cast<const char*>(&kf.value), sizeof(Vec3));
+            }
+
+            uint32_t allowedBoneCount = anim.allowedBones.size();
+            out.write(reinterpret_cast<const char*>(&allowedBoneCount), sizeof(allowedBoneCount));
+            for (const auto& bone : anim.allowedBones) {
+                writeString(out, bone);
+            }
+        }
+    }
+
+    uint32_t boneParentCount = model.boneParents.size();
+    out.write(reinterpret_cast<const char*>(&boneParentCount), sizeof(boneParentCount));
+    for (const auto& [child, parent] : model.boneParents) {
+        writeString(out, child);
+        writeString(out, parent);
+    }
+
     out.close();
 }
 
@@ -252,12 +393,66 @@ Model ModelUtil::loadCBModel(const std::string &filepath) {
             in.read(reinterpret_cast<char *>(&indexCount), sizeof(indexCount));
             std::vector<unsigned int> indices(indexCount);
             in.read(reinterpret_cast<char *>(indices.data()), indexCount * sizeof(uint32_t));
+//TODO: DO DO
+            //meshes.emplace_back(vertices, indices);
+        }
 
-            meshes.emplace_back(vertices, indices);
+        vector<Animation> animations;
+
+        uint32_t animCount;
+        in.read(reinterpret_cast<char*>(&animCount), sizeof(animCount));
+
+        for (uint32_t i = 0; i < animCount; ++i) {
+            Animation anim;
+            anim.name = readString(in);
+            in.read(reinterpret_cast<char*>(&anim.length), sizeof(anim.length));
+            in.read(reinterpret_cast<char*>(&anim.loopMode), sizeof(uint8_t));
+
+            uint32_t animatorCount;
+            in.read(reinterpret_cast<char*>(&animatorCount), sizeof(animatorCount));
+            anim.animators.resize(animatorCount);
+
+            for (Animator &animator : anim.animators) {
+                animator.name = readString(in);
+
+                uint32_t keyframeCount;
+                in.read(reinterpret_cast<char*>(&keyframeCount), sizeof(keyframeCount));
+                animator.keyframes.resize(keyframeCount);
+
+                for (Keyframe &kf : animator.keyframes) {
+                    in.read(reinterpret_cast<char*>(&kf.time), sizeof(kf.time));
+
+                    uint8_t ch, interp;
+                    in.read(reinterpret_cast<char*>(&ch), sizeof(ch));
+                    in.read(reinterpret_cast<char*>(&interp), sizeof(interp));
+
+                    kf.channel = static_cast<Channel>(ch);
+                    kf.interpolation = static_cast<Interpolation>(interp);
+
+                    in.read(reinterpret_cast<char*>(&kf.value), sizeof(Vec3));
+                }
+
+                uint32_t allowedBoneCount;
+                in.read(reinterpret_cast<char*>(&allowedBoneCount), sizeof(allowedBoneCount));
+                for (uint32_t i = 0; i < allowedBoneCount; ++i) {
+                    anim.allowedBones.insert(readString(in));
+                }
+            }
+
+            animations.push_back(anim);
+        }
+
+        uint32_t boneParentCount;
+        in.read(reinterpret_cast<char*>(&boneParentCount), sizeof(boneParentCount));
+        std::unordered_map<std::string, std::string> boneParents;
+        for (uint32_t i = 0; i < boneParentCount; ++i) {
+            std::string child = readString(in);
+            std::string parent = readString(in);
+            boneParents[child] = parent;
         }
 
         in.close();
-        return Model(meshes);
+        return Model(meshes, animations, boneParents);
     } catch (const std::exception &e) {
         std::cerr << "Failed to read CBModel " << filepath << ": " << e.what() << std::endl;
     };

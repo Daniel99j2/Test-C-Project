@@ -3,8 +3,12 @@
 //
 
 #pragma once
+#include <iosfwd>
 #include <string>
 #include <vector>
+#include <vector>
+
+#include "Animation.h"
 
 class Model;
 
@@ -15,7 +19,7 @@ public:
     static Model getModel(std::string name);
 
 private:
-    static Model genModel(std::string filePath);
+    static Model genModel(const std::string& filePath);
 
     static void saveCBModel(const std::string &filepath, const Model &model);
 

@@ -22,9 +22,10 @@ GameObject::GameObject() {
     throw std::runtime_error("Cannot create empty GameObject");
 }
 
-void GameObject::draw() {
+void GameObject::draw(float deltaTime) {
     shader.use();
-    model.Draw(shader, this->transform);
+    animator.tick(1.0f/60.0f);
+    model.Draw(shader, this->transform, deltaTime, animator);
 }
 
 void GameObject::baseTick() {

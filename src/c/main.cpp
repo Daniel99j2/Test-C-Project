@@ -1,3 +1,4 @@
+#define GLM_ENABLE_EXPERIMENTAL
 #include <iostream>
 #include <chrono>
 #include <random>
@@ -39,6 +40,7 @@ int stride = 8;
 boolean lockCursor = true;
 boolean lockCursorP = false;
 std::map<std::string, std::string> args;
+chrono::system_clock::time_point lastFrameTime;
 
 int main(int argc, char *argv[]) {
     cout << "Game loading..." << endl;
@@ -205,7 +207,15 @@ int main(int argc, char *argv[]) {
     auto g = std::make_shared<TestObject>(glm::vec3(1, 3, 1));
     world.addObject(std::static_pointer_cast<GameObject>(g));
 
+    g->animator.play(&g->model.animations[0]);
+    g->animator.play(&g->model.animations[1]);
+
     while (!glfwWindowShouldClose(window)) {
+        //the deltaTime makes it so even if it is lagging, the game still has the animation play at the same irl speed
+        auto now = std::chrono::high_resolution_clock::now();
+        float deltaTime = std::chrono::duration<float>(now - lastFrameTime).count();
+        lastFrameTime = now;
+
         glfwSetInputMode(window, GLFW_CURSOR, lockCursor ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
         glm::vec3 front;
         front.x = cos(glm::radians(GameConstants::player->pitch)) * sin(glm::radians(GameConstants::player->yaw));
@@ -282,7 +292,7 @@ int main(int argc, char *argv[]) {
         glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        world.drawWorld();
+        world.drawWorld(deltaTime);
 
         GameConstants::lightEmitterShader.use();
         GameConstants::lightEmitterShader.setMat4("projection", projection);
@@ -342,6 +352,7 @@ void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
     // make sure the viewport matches the new window dimensions; note that width and
     // height will be significantly larger than specified on retina displays.
     glViewport(0, 0, width, height);
+    glfwSetWindowSize(window, width, height);
     window_width = width;
     window_height = height;
 }

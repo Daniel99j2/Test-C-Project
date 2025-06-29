@@ -7,6 +7,7 @@
 
 #include "PhysicsEngine.h"
 #include "libs/glm/glm.hpp"
+#include "src/c/util/AnimatorInstance.h"
 #include "src/c/util/Model.h"
 #include "src/c/util/Shader.h"
 
@@ -14,6 +15,7 @@ class GameObject : public PhysicsObject {
 public:
     Model model;
     Shader shader;
+    AnimatorInstance animator = AnimatorInstance();
     std::string type;
     glm::vec3 velocity = glm::vec3(0);
     float pitch = 0;
@@ -23,7 +25,7 @@ public:
     glm::mat4 transform = glm::mat4(1.0f);
     int id = -1;
 
-    void draw();
+    void draw(float deltaTime);
     void baseTick();
     virtual void tick() = 0;
     virtual ~GameObject() = default;

@@ -10,7 +10,7 @@
 
 class World {
 public:
-    void drawWorld() const;
+    void drawWorld(float deltaTime) const;
 
     void tick() const;
 

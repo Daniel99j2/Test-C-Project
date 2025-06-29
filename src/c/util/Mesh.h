@@ -1,4 +1,5 @@
 #pragma once
+#include "Shader.h"
 #include "../../../libs/glm/vec3.hpp"
 #include "../../../libs/glm/vec2.hpp"
 
@@ -35,15 +36,18 @@ public:
     // mesh data
     vector<Vertex> vertices;
     vector<unsigned int> indices;
+    string boneName;
 
-    Mesh(vector<Vertex> vertices, vector<unsigned int> indices) {
+    Mesh(vector<Vertex> vertices, vector<unsigned int> indices, string boneName) {
         this->vertices = vertices;
         this->indices = indices;
+        this->boneName = boneName;
 
         setupMesh();
     }
 
-    void draw() {
+    void draw(Shader &shader, const glm::mat4 &transform, AnimatorInstance &animator) {
+        shader.setMat4("model", transform * animator.getFinalTransform(boneName));
         glBindVertexArray(VAO);
         glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
         glBindVertexArray(0);

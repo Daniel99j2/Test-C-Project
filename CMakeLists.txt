@@ -36,6 +36,8 @@ add_executable(
         src/c/objects/type/TestObject.cpp
         src/c/objects/type/TestObject.h
         src/c/util/Animation.h
+        src/c/util/AnimatorInstance.cpp
+        src/c/util/AnimatorInstance.h
 )
 
 file(COPY src/resources DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/src)
