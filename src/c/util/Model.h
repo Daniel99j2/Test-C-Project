@@ -28,7 +28,7 @@ public:
     Model() {
     };
 
-    void Draw(::Shader &shader, const glm::mat4 & transform, float deltaTime, AnimatorInstance &animator) const {
+    void draw(Shader &shader, const glm::mat4 & transform, float deltaTime, AnimatorInstance &animator) const {
         glActiveTexture(GL_TEXTURE0);
         shader.setInt("material.diffuse", 0);
         glBindTexture(GL_TEXTURE_2D, RenderUtil::getAtlas());
@@ -44,6 +44,13 @@ public:
 
         for (Mesh mesh: meshes) {
             mesh.draw(shader, transform, animator);
+        }
+    };
+
+    void drawBasic(Shader &shader) const {
+        AnimatorInstance fakeAnimator = AnimatorInstance();
+        for (Mesh mesh: meshes) {
+            mesh.draw(shader, glm::mat4(1), fakeAnimator);
         }
     };
 };

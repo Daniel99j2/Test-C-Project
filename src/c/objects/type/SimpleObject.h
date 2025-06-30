@@ -5,9 +5,9 @@
 
 #include "src/c/objects/LivingObject.h"
 
-class TestObject : public LivingObject {
+class SimpleObject : public LivingObject {
 public:
-    explicit TestObject(const glm::vec3& vec);
+    explicit SimpleObject(const glm::vec3& vec);
 
     void tick() override;
 };

@@ -15,14 +15,23 @@
 #include <filesystem>
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <../../../libs/stb_image_write.h>
+#define STB_RECT_PACK_IMPLEMENTATION
+#include "../../../libs/packer/rectpack2D/best_bin_finder.h"
+#include "../../../libs/packer/rectpack2D/finders_interface.h"
+#include "../../../libs/packer/rectpack2D/rect_structs.h"
 
 using namespace std;
+using namespace rectpack2D;
 
 GLuint atlasID = 0;
 int atlasWidth = 0, atlasHeight = 0;
 std::unordered_map<std::string, RenderUtil::AtlasRegion> atlasRegions;
 GLuint merAtlasID = 0;
 std::unordered_map<std::string, RenderUtil::AtlasRegion> merAtlasRegions;
+
+bool isInvalidUV(glm::vec2 uv) {
+    return uv.x < 0.0f || uv.x > 1.0f || uv.y < 0.0f || uv.y > 1.0f;
+}
 
 string RenderUtil::loadShaderSource(const char *filePath) {
     ifstream file(filePath);
@@ -49,7 +58,7 @@ GLuint RenderUtil::loadShader(const char *filePath, GLenum type) {
     if (!success) {
         char log[512];
         glGetShaderInfoLog(shader, 512, nullptr, log);
-        cerr << "Shader compile error:\n" << log << endl;
+        cerr << "Shader compile error:" << endl << log << endl;
     }
 
     return shader;
@@ -103,7 +112,7 @@ GLuint RenderUtil::genTexture(string path) {
     return textureID;
 }
 
-//use an image path. Returns -1 if null
+//use an image path. returns -1 if null
 GLuint RenderUtil::genPBR(string path) {
     path = path + ".texture_set.json";
     ifstream file(path);
@@ -127,16 +136,28 @@ GLuint RenderUtil::genPBR(string path) {
 }
 
 glm::vec2 RenderUtil::getUV(const std::string &path, const glm::vec2 &originalUV) {
+    if (path.find("noatlas") != std::string::npos) return originalUV;
+
     if (atlasRegions.empty()) throw std::runtime_error("Cannot access atlas before creation!!!");
 
-    std::string key = std::filesystem::path(path).generic_string(); // normalize to use forward slashes
-    auto it = atlasRegions.find("src/resources/textures/" + key);
+    std::string key = std::filesystem::path(path).lexically_normal().generic_string();
+    auto it = atlasRegions.find(key);
     if (it == atlasRegions.end()) {
         std::cerr << "Texture not found in atlas: " << key << endl;
         return originalUV;
     }
     const auto &r = it->second;
-    return r.uvMin + (r.uvMax - r.uvMin) * originalUV;
+    glm::vec2 finalUV = r.uvMin + (r.uvMax - r.uvMin) * originalUV;
+
+    if (isInvalidUV(r.uvMax) || isInvalidUV(r.uvMin)) {
+        std::cerr << "Atlas region UV out of bounds for " << path << std::endl;
+    }
+
+    if (isInvalidUV(finalUV) || isInvalidUV(finalUV)) {
+        std::cerr << "Calculated UV out of bounds for " << path << std::endl;
+    }
+
+    return finalUV;
 }
 
 RenderUtil::AtlasRegion *getRegion(const std::string &path) {
@@ -241,9 +262,9 @@ void RenderUtil::genOrLoadAtlas(const std::string &folder, const std::string &at
 
             stbi_image_free(atlasData);
             stbi_image_free(merData);
-            std::cerr << "Failed to load atlas metadata, regenerating...\n";
+            std::cerr << "Failed to load atlas metadata, regenerating..." << endl;
         } else {
-            std::cerr << "Failed to load existing atlases, regenerating...\n";
+            std::cerr << "Failed to load existing atlases, regenerating..." << endl;
             if (atlasData) stbi_image_free(atlasData);
             if (merData) stbi_image_free(merData);
         }
@@ -259,7 +280,7 @@ void RenderUtil::genOrLoadAtlas(const std::string &folder, const std::string &at
 
     std::vector<ImageData> images;
     for (auto &entry: std::filesystem::recursive_directory_iterator(folder)) {
-        if (entry.path().extension() == ".png") {
+        if (entry.path().extension() == ".png" && entry.path().generic_string().find("noatlas") == std::string::npos) {
             std::string path = entry.path().string();
             int w, h, c;
             unsigned char *data = stbi_load(path.c_str(), &w, &h, &c, 4);
@@ -274,45 +295,74 @@ void RenderUtil::genOrLoadAtlas(const std::string &folder, const std::string &at
         }
     }
 
-    const int maxWidth = 2048, padding = 2;
-    int x = padding, y = padding, rowH = 0;
-    atlasWidth = maxWidth;
+    constexpr bool allow_flip = false;
+    using spaces_type = empty_spaces<allow_flip, default_empty_spaces>;
 
-    for (auto &img: images) {
-        if (x + img.w + padding > maxWidth) {
-            y += rowH + padding;
-            x = padding;
-            rowH = 0;
-        }
-        glm::vec2 uvMin = {float(x), float(y)};
-        glm::vec2 uvMax = {float(x + img.w), float(y + img.h)};
-        RenderUtil::AtlasRegion region;
-        region.uvMin = uvMin;
-        region.uvMax = uvMax;
-        region.width = img.w;
-        region.height = img.h;
-
-        atlasRegions[img.path] = region;
-        merAtlasRegions[img.path] = region;
-
-        x += img.w + padding;
-        rowH = std::max(rowH, img.h);
+    std::vector<rect_xywh> rects;
+    rects.reserve(images.size());
+    for (size_t i = 0; i < images.size(); ++i) {
+        rects.push_back({0, 0, images[i].w, images[i].h});
     }
 
-    atlasHeight = y + rowH + padding;
+    constexpr int max_side = 16000;
+    constexpr int discard_step = -4;
+    auto finder_input = make_finder_input(
+        max_side,
+        discard_step,
+        [](rect_xywh &) {
+            return rectpack2D::callback_result::CONTINUE_PACKING;
+        },
+        [](rect_xywh &) {
+            cout << "Error packing!" << endl;
+            return rectpack2D::callback_result::ABORT_PACKING;
+        },
+        flipping_option::DISABLED
+    );
+
+    using spaces_type = empty_spaces<false, default_empty_spaces>;
+    auto result_size = find_best_packing<spaces_type>(
+        rects,
+        finder_input
+    );
+
+    if (result_size.w == 0 || result_size.h == 0) {
+        std::cerr << "Atlas generation failed!" << std::endl;
+        return;
+    }
+
+    atlasWidth = result_size.w;
+    atlasHeight = result_size.h;
+
+    atlasRegions.clear();
+    merAtlasRegions.clear();
 
     auto *atlasData = new unsigned char[atlasWidth * atlasHeight * 4]();
     auto *merData = new unsigned char[atlasWidth * atlasHeight * 4]();
 
-    for (auto &img: images) {
-        auto &region = atlasRegions[img.path];
-        int px = static_cast<int>(region.uvMin.x);
-        int py = static_cast<int>(region.uvMin.y);
+    // now we make the pngs
+    //this grabs the texure back from the list - as the indexes are the same
+    for (size_t i = 0; i < rects.size(); ++i) {
+        const auto &r = rects[i];
+        auto &img = images[i];
+        AtlasRegion region;
+        region.width = static_cast<int>(r.w);
+        region.height = static_cast<int>(r.h);
+        region.uvMin = glm::vec2(static_cast<float>(r.x), static_cast<float>(r.y));
+        region.uvMax = glm::vec2(static_cast<float>(r.x + r.w), static_cast<float>(r.y + r.h));
 
-        for (int j = 0; j < img.h; ++j) {
-            for (int i = 0; i < img.w; ++i) {
-                int dst = ((py + j) * atlasWidth + (px + i)) * 4;
-                int src = (j * img.w + i) * 4;
+        std::string relativeKey = std::filesystem::relative(img.path, folder).generic_string();
+        atlasRegions[relativeKey] = region;
+        merAtlasRegions[relativeKey] = region;
+
+        for (int y = 0; y < img.h; ++y) {
+            for (int x = 0; x < img.w; ++x) {
+                int dst = ((r.y + y) * atlasWidth + (r.x + x)) * 4;
+                int src = (y * img.w + x) * 4;
+                if (!img.data) {
+                    std::cerr << "img.data was null for image: " << relativeKey << std::endl;
+                    continue;
+                }
+
                 memcpy(&atlasData[dst], &img.data[src], 4);
                 memcpy(&merData[dst], &img.merData[src], 4);
             }
@@ -336,7 +386,7 @@ void RenderUtil::genOrLoadAtlas(const std::string &folder, const std::string &at
     uploadTex(atlasID, atlasData);
     uploadTex(merAtlasID, merData);
 
-    // Normalize UVs AFTER uploading
+    // now the uv
     for (auto &[_, region]: atlasRegions) {
         region.uvMin /= glm::vec2(atlasWidth, atlasHeight);
         region.uvMax /= glm::vec2(atlasWidth, atlasHeight);
@@ -346,7 +396,7 @@ void RenderUtil::genOrLoadAtlas(const std::string &folder, const std::string &at
         region.uvMax /= glm::vec2(atlasWidth, atlasHeight);
     }
 
-    // Save to disk
+    // save it!
     std::filesystem::create_directories(std::filesystem::path(atlasPng).parent_path());
     std::filesystem::create_directories(std::filesystem::path(merPng).parent_path());
 
@@ -355,9 +405,6 @@ void RenderUtil::genOrLoadAtlas(const std::string &folder, const std::string &at
 
     if (!stbi_write_png(merPng.c_str(), atlasWidth, atlasHeight, 4, merData, atlasWidth * 4))
         std::cerr << "Failed to write MER atlas PNG: " << merPng << '\n';
-
-    delete[] atlasData;
-    delete[] merData;
 
     auto writeMeta = [](const std::string &path,
                         const std::unordered_map<std::string, RenderUtil::AtlasRegion> &regions) {
@@ -376,8 +423,10 @@ void RenderUtil::genOrLoadAtlas(const std::string &folder, const std::string &at
 
     writeMeta(atlasMeta, atlasRegions);
     writeMeta(merMeta, merAtlasRegions);
-}
 
+    delete[] atlasData;
+    delete[] merData;
+}
 
 GLuint RenderUtil::getAtlas() {
     return atlasID;

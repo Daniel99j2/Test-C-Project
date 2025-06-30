@@ -24,7 +24,7 @@
 #include "util/Shader.h"
 #include "objects/GameObject.h"
 #include "objects/type/Player.h"
-#include "objects/type/TestObject.h"
+#include "objects/type/SimpleObject.h"
 #include "world/World.h"
 //the bin folder contents needs to be copied!
 
@@ -165,27 +165,18 @@ int main(int argc, char *argv[]) {
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride * sizeof(float), (void *) 0);
     glEnableVertexAttribArray(0);
 
-    unsigned int skyboxVAO;
-    glGenVertexArrays(1, &skyboxVAO);
-    glBindVertexArray(skyboxVAO);
-
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride * sizeof(float), (void *) 0);
-    glEnableVertexAttribArray(0);
-
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, stride * sizeof(float), (void *) (6 * sizeof(float)));
-    glEnableVertexAttribArray(1);
-
     if (GameConstants::wireframe) glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
-    GLuint texture = RenderUtil::genTexture("src/resources/textures/test");
-    GLuint texture1 = RenderUtil::genTexture("src/resources/textures/test2");
-    GLuint texture2 = RenderUtil::genTexture("src/resources/textures/test3");
+    GLuint starsTex = RenderUtil::genTexture("src/resources/textures/noatlas/skybox/stars");
+    GLuint sunTex = RenderUtil::genTexture("src/resources/textures/noatlas/skybox/sun");
+    GLuint moonTex = RenderUtil::genTexture("src/resources/textures/noatlas/skybox/moon");
+    GLuint daySkyTex = RenderUtil::genTexture("src/resources/textures/noatlas/skybox/day");
+    GLuint cloudsTex = RenderUtil::genTexture("src/resources/textures/noatlas/skybox/clouds");
+    GLuint nightSkyTex = RenderUtil::genTexture("src/resources/textures/noatlas/skybox/night");
 
     GameConstants::defaultShader = Shader("default");
     GameConstants::skyboxShader = Shader("skybox");
     GameConstants::lightEmitterShader = Shader("lighting");
-
-    GLuint skyboxTexture = RenderUtil::genTexture("src/resources/textures/skybox");
 
     GameConstants::defaultShader.use();
 
@@ -194,6 +185,8 @@ int main(int argc, char *argv[]) {
                                "output/atlases/atlas_mer.json", args.contains("regenAtlas") || args.contains("regenAll"));
 
     ModelUtil::loadModels(args.contains("regenAtlas") || args.contains("regenModels") || args.contains("regenAll"));
+
+    Model skybox = ModelUtil::getModel("skybox");
 
     float speed = 0.1f;
     glm::vec3 lightPos(1.5f, 1.0f, -2.3f);
@@ -204,7 +197,7 @@ int main(int argc, char *argv[]) {
     GameConstants::player = std::make_shared<Player>(glm::vec3(1, 1, 1));;
     world.addObject(std::static_pointer_cast<GameObject>(GameConstants::player));
 
-    auto g = std::make_shared<TestObject>(glm::vec3(1, 3, 1));
+    auto g = std::make_shared<SimpleObject>(glm::vec3(1, 3, 1));
     world.addObject(std::static_pointer_cast<GameObject>(g));
 
     g->animator.play(&g->model.animations[0]);
@@ -251,6 +244,7 @@ int main(int argc, char *argv[]) {
         }
 
         world.tick();
+        GameConstants::physicsEngine.simulate(1/60);
 
         auto model = glm::mat4(1.0f);
         auto view = glm::mat4(1.0f);
@@ -258,6 +252,8 @@ int main(int argc, char *argv[]) {
 
         glm::mat4 projection;
         projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f);
+
+        //glDepthMask(GL_TRUE);
 
         GameConstants::defaultShader.use();
         GameConstants::defaultShader.setVec3("viewPos", GameConstants::player->position + glm::vec3(0, 1.8, 0));
@@ -311,33 +307,49 @@ int main(int argc, char *argv[]) {
             glDrawArrays(GL_TRIANGLES, 0, 36);
         }
 
-        //temp
-        GameConstants::skyboxShader.use();
-        GameConstants::skyboxShader.setInt("asset", 0);
-        GameConstants::skyboxShader.setMat4("projection", projection);
-        GameConstants::skyboxShader.setMat4("view", view);
-        float test1 = 1.0f / fmod(glfwGetTime(), 10.0f);
-        GameConstants::skyboxShader.setFloat("lightness", test1);
-        auto model2 = glm::mat4(1.0f);
-        model2 = glm::scale(model2, glm::vec3(-100));
-        GameConstants::skyboxShader.setMat4("model", model2);
-
-        glBindVertexArray(skyboxVAO);
-
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, skyboxTexture);
-
         glDrawArrays(GL_TRIANGLES, 0, 36);
 
-        glDepthMask(TRUE);
+        glDepthFunc(GL_LEQUAL);
+        glDepthMask(GL_FALSE);
+        GameConstants::skyboxShader.use();
+
+        glActiveTexture(GL_TEXTURE10);
+        GameConstants::skyboxShader.setInt("starsTex", 10);
+        glBindTexture(GL_TEXTURE_2D, starsTex);
+        glActiveTexture(GL_TEXTURE11);
+        GameConstants::skyboxShader.setInt("sunTex", 11);
+        glBindTexture(GL_TEXTURE_2D, sunTex);
+        glActiveTexture(GL_TEXTURE12);
+        GameConstants::skyboxShader.setInt("moonTex", 12);
+        glBindTexture(GL_TEXTURE_2D, moonTex);
+        glActiveTexture(GL_TEXTURE13);
+        GameConstants::skyboxShader.setInt("cloudsTex", 13);
+        glBindTexture(GL_TEXTURE_2D, cloudsTex);
+        glActiveTexture(GL_TEXTURE14);
+        GameConstants::skyboxShader.setInt("daySkyTex", 14);
+        glBindTexture(GL_TEXTURE_2D, daySkyTex);
+        glActiveTexture(GL_TEXTURE15);
+        GameConstants::skyboxShader.setInt("nightSkyTex", 15);
+        glBindTexture(GL_TEXTURE_2D, nightSkyTex);
+
+        float time = (float)glfwGetTime() * 0.5f - 0.0f;
+        GameConstants::skyboxShader.setFloat("time", time);
+
+        GameConstants::skyboxShader.setMat4("view", view);
+        GameConstants::skyboxShader.setMat4("projection", projection);
+
+        GameConstants::skyboxShader.setFloat("cirrus", 0.4f);
+        GameConstants::skyboxShader.setFloat("cumulus", 0.6f);
+
+        skybox.drawBasic(GameConstants::skyboxShader);
+        glDepthMask(GL_TRUE);
+        glDepthFunc(GL_LESS);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
 
         string title = ("Baseplate test game - Pos: " + to_string(GameConstants::player->position.x) + " " + to_string(GameConstants::player->position.y) + " " + to_string(GameConstants::player->position.z) + " Pitch: " + to_string(GameConstants::player->pitch) + " Yaw: " + to_string(GameConstants::player->yaw));
         glfwSetWindowTitle(window, title.c_str());
-
-        GameConstants::physicsEngine.simulate(0.1f);
 
         Sleep(1000 / GameConstants::targetFPS);
     }

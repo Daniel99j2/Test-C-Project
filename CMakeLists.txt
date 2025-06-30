@@ -6,6 +6,8 @@ set(CMAKE_CXX_STANDARD 20)
 add_subdirectory(libs/glew/build/cmake)
 add_subdirectory(libs/glfw)
 add_subdirectory(libs/glm)
+# Note that packer is modified!
+add_subdirectory(libs/packer)
 
 find_package(OpenGL REQUIRED)
 
@@ -33,8 +35,8 @@ add_executable(
         src/c/world/World.h
         src/c/util/GameConstants.h
         src/c/util/GameConstants.cpp
-        src/c/objects/type/TestObject.cpp
-        src/c/objects/type/TestObject.h
+        src/c/objects/type/SimpleObject.cpp
+        src/c/objects/type/SimpleObject.h
         src/c/util/Animation.h
         src/c/util/AnimatorInstance.cpp
         src/c/util/AnimatorInstance.h
@@ -56,3 +58,4 @@ add_custom_target(copy_resources ALL
 target_link_libraries(Main PRIVATE glew)
 target_link_libraries(Main PRIVATE glfw)
 target_link_libraries(Main PRIVATE glm)
+target_link_libraries(Main PRIVATE rectpack2D)

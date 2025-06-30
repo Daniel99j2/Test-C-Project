@@ -156,7 +156,6 @@ Model ModelUtil::genModel(const string& filePath) {
                 }
             }
         }
-        cout << boneName << endl;
         meshes.push_back(Mesh(vertices, indices, boneName));
     }
 
@@ -232,7 +231,7 @@ Model ModelUtil::genModel(const string& filePath) {
 }
 
 void ModelUtil::loadModels(bool forceRegen) {
-    //INSANE peformace increase... 200,000 faces goes from 20-30 secs to >2.5 secs (does not apply to startup/generation)
+    //INSANE performance increase... 200,000 faces go from 20-30 secs loading to >2.5 secs (does not apply to startup/generation)
     if (!forceRegen) {
         std::filesystem::create_directories(std::filesystem::path("output/compiled_models/"));
         for (auto &entry: std::filesystem::recursive_directory_iterator("output/compiled_models/")) {
@@ -287,6 +286,10 @@ void ModelUtil::loadModels(bool forceRegen) {
 }
 
 Model ModelUtil::getModel(string name) {
+    if (models[name].meshes.size() == 0 && name != "unknown") {
+        cerr << "Unknown model: " << name << endl;
+        return getModel("unknown");
+    }
     return models[name];
 }
 
@@ -315,6 +318,8 @@ void ModelUtil::saveCBModel(const std::string &filepath, const Model &model) {
         uint32_t indexCount = mesh.indices.size();
         out.write(reinterpret_cast<char *>(&indexCount), sizeof(indexCount));
         out.write(reinterpret_cast<const char *>(mesh.indices.data()), indexCount * sizeof(uint32_t));
+
+        writeString(out, mesh.boneName);
     }
 
     uint32_t animCount = model.animations.size();
@@ -393,14 +398,18 @@ Model ModelUtil::loadCBModel(const std::string &filepath) {
             in.read(reinterpret_cast<char *>(&indexCount), sizeof(indexCount));
             std::vector<unsigned int> indices(indexCount);
             in.read(reinterpret_cast<char *>(indices.data()), indexCount * sizeof(uint32_t));
-//TODO: DO DO
-            //meshes.emplace_back(vertices, indices);
+
+            std::string boneName = readString(in);
+
+            meshes.emplace_back(vertices, indices, boneName);
         }
 
         vector<Animation> animations;
 
-        uint32_t animCount;
-        in.read(reinterpret_cast<char*>(&animCount), sizeof(animCount));
+        uint32_t animCount = 0;
+        if (!in.eof()) {  // check if theres animation data
+            in.read(reinterpret_cast<char*>(&animCount), sizeof(animCount));
+        }
 
         for (uint32_t i = 0; i < animCount; ++i) {
             Animation anim;
@@ -442,8 +451,10 @@ Model ModelUtil::loadCBModel(const std::string &filepath) {
             animations.push_back(anim);
         }
 
-        uint32_t boneParentCount;
-        in.read(reinterpret_cast<char*>(&boneParentCount), sizeof(boneParentCount));
+        uint32_t boneParentCount = 0;
+        if (!in.eof()) {  // check if theres bone parent data so no animations work
+            in.read(reinterpret_cast<char*>(&boneParentCount), sizeof(boneParentCount));
+        }
         std::unordered_map<std::string, std::string> boneParents;
         for (uint32_t i = 0; i < boneParentCount; ++i) {
             std::string child = readString(in);

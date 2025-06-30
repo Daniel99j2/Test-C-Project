@@ -14,7 +14,7 @@
 #include "src/c/util/ModelUtil.h"
 
 GameObject::GameObject(const glm::vec3 vec)
-    : PhysicsObject(ShapeType::Rectangle, vec, glm::vec3(0.2, 0, 0), 1.0f, gravity),
+    : PhysicsObject(ShapeType::Rectangle, vec, glm::vec3(2, 2, 2), 1.0f, gravity),
       model(ModelUtil::getModel("unknown")),
       shader(GameConstants::defaultShader) {};
 
@@ -25,7 +25,7 @@ GameObject::GameObject() {
 void GameObject::draw(float deltaTime) {
     shader.use();
     animator.tick(1.0f/60.0f);
-    model.Draw(shader, this->transform, deltaTime, animator);
+    model.draw(shader, this->transform, deltaTime, animator);
 }
 
 void GameObject::baseTick() {
