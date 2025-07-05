@@ -33,28 +33,22 @@ inline bool operator<(const Vertex &a, const Vertex &b) {
 
 class Mesh {
 public:
-    // mesh data
     vector<Vertex> vertices;
     vector<unsigned int> indices;
-    string boneName;
 
-    Mesh(vector<Vertex> vertices, vector<unsigned int> indices, string boneName) {
-        this->vertices = vertices;
-        this->indices = indices;
-        this->boneName = boneName;
-
+    Mesh(const vector<Vertex> &vertices, const vector<unsigned int> &indices)
+        : vertices(vertices), indices(indices) {
         setupMesh();
     }
 
-    void draw(Shader &shader, const glm::mat4 &transform, AnimatorInstance &animator) {
-        shader.setMat4("model", transform * animator.getFinalTransform(boneName));
+    void draw(Shader &shader, const glm::mat4 &transform) const {
+        shader.setMat4("model", transform);
         glBindVertexArray(VAO);
-        glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
+        glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, nullptr);
         glBindVertexArray(0);
-    };
+    }
 
 private:
-    //  render data
     unsigned int VAO, VBO, EBO;
 
     void setupMesh() {

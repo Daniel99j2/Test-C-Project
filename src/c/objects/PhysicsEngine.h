@@ -25,7 +25,7 @@ class PhysicsObject {
 public:
     ShapeType shape;
     glm::vec3 position;
-    glm::vec3 velocity{};
+    glm::vec3 velocity;
     glm::vec3 size; // radius for sphere, size for rectangle/cylinder
     float mass;
     float gravity;

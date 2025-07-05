@@ -9,7 +9,7 @@ uniform float cumulus;  // 0.0 to 1.0
 
 const float Br = 0.0005;
 const float Bm = 0.0003;
-const float g =  0.9200;
+const float g = 0.9200;
 const vec3 nitrogen = vec3(0.650, 0.570, 0.475);
 const vec3 Kr = Br / pow(nitrogen, vec3(4.0));
 const vec3 Km = Bm / pow(nitrogen, vec3(0.84));
@@ -21,13 +21,13 @@ float hash(float n) {
 float noise(vec3 x) {
     vec3 f = fract(x);
     float n = dot(floor(x), vec3(1.0, 157.0, 113.0));
-    return mix(mix(mix(hash(n +   0.0), hash(n +   1.0), f.x),
+    return mix(mix(mix(hash(n + 0.0), hash(n + 1.0), f.x),
                    mix(hash(n + 157.0), hash(n + 158.0), f.x), f.y),
                mix(mix(hash(n + 113.0), hash(n + 114.0), f.x),
                    mix(hash(n + 270.0), hash(n + 271.0), f.x), f.y), f.z);
 }
 
-const mat3 m = mat3(0.0, 1.60,  1.20,
+const mat3 m = mat3(0.0, 1.60, 1.20,
 -1.6, 0.72, -0.96,
 -1.2, -0.96, 1.28);
 

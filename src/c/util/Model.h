@@ -15,20 +15,25 @@ using namespace std;
 
 class Model {
 public:
-    vector<Mesh> meshes;
-    vector<Animation> animations;
+    // Bone name to list of meshes
+    std::unordered_map<std::string, std::vector<Mesh>> boneMeshes;
+    std::vector<Mesh> unboundMeshes;
+
+    std::vector<Animation> animations;
     std::unordered_map<std::string, std::string> boneParents;
+    std::unordered_map<std::string, glm::vec3> origins;
 
-    explicit Model(const vector<Mesh> &meshes, const vector<Animation> &animations, std::unordered_map<std::string, std::string> boneParents) {
-        this->boneParents = boneParents;
-        this->meshes = meshes;
-        this->animations = animations;
-    }
+    Model(const std::unordered_map<std::string, std::vector<Mesh>> &boneMeshes,
+          const std::vector<Mesh> &unboundMeshes,
+          const std::vector<Animation> &animations,
+          std::unordered_map<std::string, std::string> boneParents,
+          std::unordered_map<std::string, glm::vec3> origins)
+            : boneMeshes(boneMeshes), unboundMeshes(unboundMeshes),
+              animations(animations), boneParents(boneParents), origins(origins) {}
 
-    Model() {
-    };
+    Model() = default;
 
-    void draw(Shader &shader, const glm::mat4 & transform, float deltaTime, AnimatorInstance &animator) const {
+    void draw(Shader &shader, const glm::mat4 &transform, AnimatorInstance &animator) const {
         glActiveTexture(GL_TEXTURE0);
         shader.setInt("material.diffuse", 0);
         glBindTexture(GL_TEXTURE_2D, RenderUtil::getAtlas());
@@ -37,20 +42,27 @@ public:
         shader.setInt("material.mer", 1);
         glBindTexture(GL_TEXTURE_2D, RenderUtil::getMERAtlas());
 
-        //debugging: CHECK:
-        //TICKS?
-        //DRAWS?
-        //UPDATED?
-
-        for (Mesh mesh: meshes) {
-            mesh.draw(shader, transform, animator);
+        for (const auto& [bone, meshes] : boneMeshes) {
+            glm::mat4 boneTransform = transform * animator.getFinalTransform(bone);
+            for (const auto& mesh : meshes) {
+                mesh.draw(shader, boneTransform);
+            }
         }
-    };
+
+        for (const auto& mesh : unboundMeshes) {
+            mesh.draw(shader, transform);
+        }
+    }
 
     void drawBasic(Shader &shader) const {
-        AnimatorInstance fakeAnimator = AnimatorInstance();
-        for (Mesh mesh: meshes) {
-            mesh.draw(shader, glm::mat4(1), fakeAnimator);
+        AnimatorInstance fakeAnimator;
+        for (const auto& [_, meshes] : boneMeshes) {
+            for (const auto& mesh : meshes) {
+                mesh.draw(shader, glm::mat4(1.0f));
+            }
         }
-    };
+        for (const auto& mesh : unboundMeshes) {
+            mesh.draw(shader, glm::mat4(1.0f));
+        }
+    }
 };

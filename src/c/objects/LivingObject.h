@@ -7,10 +7,10 @@
 
 class LivingObject: public GameObject {
 public:
-    int health = 0;
-    int maxHealth = 0;
-    int damage = 0;
-    int speed = 0;
+    float health = 0;
+    float maxHealth = 0;
+    float damage = 0;
+    float speed = 0;
 
     explicit LivingObject(const glm::vec3& vec) : GameObject(vec) {
 

@@ -16,6 +16,11 @@
 #include "util/GenericUtil.h"
 #include <string>
 #include "../../../libs/json.hpp"
+#include "../../../libs/imgui/imgui.h"
+#include "../../../libs/imgui/imgui.h"
+#include "../../../libs/imgui/backends/imgui_impl_glfw.h"
+#include "../../libs/imgui/backends/imgui_impl_opengl3.h"
+#include "libs/stb_image.h"
 #include "objects/PhysicsEngine.h"
 #include "util/GameConstants.h"
 #include "util/Model.h"
@@ -25,6 +30,8 @@
 #include "objects/GameObject.h"
 #include "objects/type/Player.h"
 #include "objects/type/SimpleObject.h"
+#include "util/Keybind.h"
+#include "util/Keybinds.h"
 #include "world/World.h"
 //the bin folder contents needs to be copied!
 
@@ -34,13 +41,40 @@ void framebuffer_size_callback(GLFWwindow *window, int width, int height);
 
 void mouse_callback(GLFWwindow *window, double xpos, double ypos);
 
-int window_width = 800;
-int window_height = 600;
 int stride = 8;
-boolean lockCursor = true;
-boolean lockCursorP = false;
 std::map<std::string, std::string> args;
 chrono::system_clock::time_point lastFrameTime;
+
+struct Light {
+    glm::vec3 position;
+    float constant;
+    float linear;
+    float quadratic;
+    glm::vec3 ambient;
+    glm::vec3 diffuse;
+    glm::vec3 specular;
+};
+
+constexpr unsigned int SHADOW_WIDTH = 1024, SHADOW_HEIGHT = 1024;
+constexpr int MAX_POINT_LIGHTS = 4;
+std::vector<unsigned int> depthCubemaps;
+std::vector<unsigned int> depthMapFBOs;
+
+std::vector<Light> lights;
+
+std::vector<glm::mat4> getPointLightShadowTransforms(const glm::vec3 &lightPos, float near_plane, float far_plane) {
+    glm::mat4 shadowProj = glm::perspective(glm::radians(90.0f), 1.0f, near_plane, far_plane);
+    std::vector<glm::mat4> shadowTransforms;
+    shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3(1, 0, 0), glm::vec3(0,-1,0)));
+    shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3(-1, 0, 0), glm::vec3(0,-1,0)));
+    shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3(0, 1, 0), glm::vec3(0, 0, 1)));
+    shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3(0, -1, 0), glm::vec3(0, 0, -1)));
+    shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3(0, 0, 1), glm::vec3(0,-1,0)));
+    shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3(0, 0, -1), glm::vec3(0,-1,0)));
+    return shadowTransforms;
+}
+
+std::map<std::string, bool> debugCheckboxes;
 
 int main(int argc, char *argv[]) {
     cout << "Game loading..." << endl;
@@ -68,7 +102,8 @@ int main(int argc, char *argv[]) {
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
 
-    GLFWwindow *window = glfwCreateWindow(window_width, window_height, "Baseplate Test", NULL, NULL);
+    GLFWwindow *window = glfwCreateWindow(GameConstants::window_width, GameConstants::window_height, "Baseplate Test", NULL, NULL);
+    GameConstants::window = window;
     if (!window) {
         std::cerr << "Couldn't create the window!" << std::endl;
         glfwTerminate();
@@ -84,6 +119,17 @@ int main(int argc, char *argv[]) {
         std::cerr << "GLEW init failed: " << glewGetErrorString(err) << std::endl;
         return -1;
     }
+
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+
+    // Setup ImGui style
+    ImGui::StyleColorsDark();
+
+    // Setup Platform/Renderer backends
+    ImGui_ImplOpenGL3_Init("#version 330 core");
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
 
     float vertices[] = {
         // positions          // normals           // texture coords
@@ -130,14 +176,17 @@ int main(int argc, char *argv[]) {
         -0.5f, 0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f
     };
 
-    vector<glm::vec3> pointLightPositions = {};
-    vector<glm::vec3> pointLightColours = {};
-
-    for (int i = 0; i < 20; ++i) {
-        pointLightPositions.push_back(glm::vec3(GenericUtil::randomInt(-10, 10), GenericUtil::randomInt(-10, 10),
-                                                GenericUtil::randomInt(-10, 10)));
-        pointLightColours.push_back(glm::vec3(GenericUtil::randomFloat(0, 1, 2), GenericUtil::randomFloat(0, 1, 2),
-                                              GenericUtil::randomFloat(0, 1, 2)));
+    for (int i = 0; i < 4; ++i) {
+        glm::vec3 colour = glm::vec3(GenericUtil::randomFloat(0, 1, 2), GenericUtil::randomFloat(0, 1, 2),
+                      GenericUtil::randomFloat(0, 1, 2));
+        lights.push_back(Light(
+            glm::vec3(GenericUtil::randomInt(-5, 5), GenericUtil::randomInt(-5, 5),
+                      GenericUtil::randomInt(-5, 5)),
+            1, 0.09f, 0.032f,
+            colour/100.0f,
+            colour,
+            colour/2.0f
+        ));
     }
 
     unsigned int VBO, cubeVAO;
@@ -156,60 +205,124 @@ int main(int argc, char *argv[]) {
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride * sizeof(float), (void *) (6 * sizeof(float)));
     glEnableVertexAttribArray(2);
 
-
     // second, configure the light's VAO (VBO stays the same; the vertices are the same for the light object which is also a 3D cube)
     unsigned int lightCubeVAO;
     glGenVertexArrays(1, &lightCubeVAO);
     glBindVertexArray(lightCubeVAO);
 
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride * sizeof(float), (void *) 0);
-    glEnableVertexAttribArray(0);
+    int lightCount = (int) lights.size();
+    if(lightCount > MAX_POINT_LIGHTS) lightCount = MAX_POINT_LIGHTS;
 
-    if (GameConstants::wireframe) glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
-    GLuint starsTex = RenderUtil::genTexture("src/resources/textures/noatlas/skybox/stars");
-    GLuint sunTex = RenderUtil::genTexture("src/resources/textures/noatlas/skybox/sun");
-    GLuint moonTex = RenderUtil::genTexture("src/resources/textures/noatlas/skybox/moon");
-    GLuint daySkyTex = RenderUtil::genTexture("src/resources/textures/noatlas/skybox/day");
-    GLuint cloudsTex = RenderUtil::genTexture("src/resources/textures/noatlas/skybox/clouds");
-    GLuint nightSkyTex = RenderUtil::genTexture("src/resources/textures/noatlas/skybox/night");
+    depthCubemaps.resize(lightCount);
+    depthMapFBOs.resize(lightCount);
+
+    glGenFramebuffers(lightCount, depthMapFBOs.data());
+    glGenTextures(lightCount, depthCubemaps.data());
+
+    for(int i = 0; i < lightCount; ++i) {
+        glBindTexture(GL_TEXTURE_CUBE_MAP, depthCubemaps[i]);
+        for (unsigned int face = 0; face < 6; ++face) {
+            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, 0, GL_DEPTH_COMPONENT,
+                         SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+        }
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+        glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBOs[i]);
+        glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, depthCubemaps[i], 0);
+        glDrawBuffer(GL_NONE);
+        glReadBuffer(GL_NONE);
+
+        if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+            std::cerr << "Point Shadow Framebuffer not complete for light " << i << endl;
+        }
+    }
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    GLFWimage *icon = RenderUtil::getImageData("src/resources/textures/noatlas/icon");
+    glfwSetWindowIcon(window, 1, icon);
+    stbi_image_free(icon->pixels);
+    delete icon;
 
     GameConstants::defaultShader = Shader("default");
     GameConstants::skyboxShader = Shader("skybox");
     GameConstants::lightEmitterShader = Shader("lighting");
+    Shader pointShadowShader("point_shadow", true);
 
     GameConstants::defaultShader.use();
 
     RenderUtil::genOrLoadAtlas("src/resources/textures", "output/atlases/atlas_main.png",
                                "output/atlases/atlas_main.json", "output/atlases/atlas_mer.png",
-                               "output/atlases/atlas_mer.json", args.contains("regenAtlas") || args.contains("regenAll"));
+                               "output/atlases/atlas_mer.json",
+                               args.contains("regenAtlas") || args.contains("regenAll"));
 
     ModelUtil::loadModels(args.contains("regenAtlas") || args.contains("regenModels") || args.contains("regenAll"));
 
     Model skybox = ModelUtil::getModel("skybox");
 
-    float speed = 0.1f;
     glm::vec3 lightPos(1.5f, 1.0f, -2.3f);
 
     cout << "Game loaded! \nGame took " << glfwGetTime() - startTime << " seconds to start!" << endl;
 
     auto world = World();
-    GameConstants::player = std::make_shared<Player>(glm::vec3(1, 1, 1));;
+    GameConstants::player = std::make_shared<Player>(glm::vec3(0, 10, 0));;
     world.addObject(std::static_pointer_cast<GameObject>(GameConstants::player));
+    GameConstants::player->gravity = 0;
 
-    auto g = std::make_shared<SimpleObject>(glm::vec3(1, 3, 1));
+    auto g = std::make_shared<SimpleObject>(glm::vec3(0, 0, 0));
     world.addObject(std::static_pointer_cast<GameObject>(g));
+    g->gravity = 0;
 
     g->animator.play(&g->model.animations[0]);
     g->animator.play(&g->model.animations[1]);
 
+    glDepthMask(GL_TRUE);
+    glEnable(GL_CULL_FACE);
+
+    //anti aliasing - stops the jagged edges
+    //glfwWindowHint(GLFW_SAMPLES, 4);
+    glEnable(GL_MULTISAMPLE);
+
+    //gamma correction
+    glEnable(GL_FRAMEBUFFER_SRGB);
+
     while (!glfwWindowShouldClose(window)) {
+
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+
+        ImGui::ShowDemoWindow();
+
+        ImGui::Begin("Inventory");
+        ImGui::Text("You have %d apples", 5);
+        ImGui::End();
+
+        ImGui::Begin("Debug options");
+        ImGui::SeparatorText("Game");
+        ImGui::Checkbox("Wireframe", &GameConstants::wireframe);
+        ImGui::InputInt("FPS", &GameConstants::targetFPS);
+
+        ImGui::SeparatorText("Player");
+        ImGui::End();
+
+        if (GameConstants::wireframe) glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        else glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
         //the deltaTime makes it so even if it is lagging, the game still has the animation play at the same irl speed
         auto now = std::chrono::high_resolution_clock::now();
         float deltaTime = std::chrono::duration<float>(now - lastFrameTime).count();
         lastFrameTime = now;
 
-        glfwSetInputMode(window, GLFW_CURSOR, lockCursor ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
+        for (auto &k: GameConstants::keybindsManager.keybinds) k->update(window);
+        glfwSetInputMode(window, GLFW_CURSOR, !GameConstants::keybindsManager.TOGGLE_CURSOR->isPressd() && !GameConstants::debugging
+                                                  ? GLFW_CURSOR_DISABLED
+                                                  : GLFW_CURSOR_NORMAL);
+
         glm::vec3 front;
         front.x = cos(glm::radians(GameConstants::player->pitch)) * sin(glm::radians(GameConstants::player->yaw));
         front.y = sin(glm::radians(GameConstants::player->pitch));
@@ -222,64 +335,47 @@ int main(int argc, char *argv[]) {
         glm::vec3 flatFront = glm::normalize(glm::vec3(front.x, 0.0f, front.z));
         glm::vec3 flatRight = glm::normalize(glm::vec3(right.x, 0.0f, right.z));
 
-        if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-            GameConstants::player->position += flatFront * speed;
-        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-            GameConstants::player->position -= flatFront * speed;
-        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-            GameConstants::player->position -= flatRight * speed;
-        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-            GameConstants::player->position += flatRight * speed;
-        if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
-            GameConstants::player->position.y = GameConstants::player->position.y + speed;
-        if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
-            GameConstants::player->position.y = GameConstants::player->position.y - speed;
-        if (glfwGetKey(window, GLFW_KEY_T) == GLFW_PRESS) {
-            if (!lockCursorP) {
-                lockCursorP = true;
-                lockCursor = !lockCursor;
-            }
-        } else {
-            lockCursorP = false;
-        }
-
         world.tick();
-        GameConstants::physicsEngine.simulate(1/60);
+        GameConstants::physicsEngine.simulate(1);
 
         auto model = glm::mat4(1.0f);
         auto view = glm::mat4(1.0f);
-        view = glm::lookAt(GameConstants::player->position + glm::vec3(0, 1.8, 0), GameConstants::player->position + glm::vec3(0, 1.8, 0) + front, up);
-
-        glm::mat4 projection;
-        projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f);
-
-        //glDepthMask(GL_TRUE);
-
-        GameConstants::defaultShader.use();
-        GameConstants::defaultShader.setVec3("viewPos", GameConstants::player->position + glm::vec3(0, 1.8, 0));
-
-        for (unsigned int i = 0; i < std::size(pointLightPositions); i++) {
-            GameConstants::defaultShader.setVec3(("pointLights[" + std::to_string(i) + "].position"),
-                                                 pointLightPositions[0]);
-            GameConstants::defaultShader.setVec3(("pointLights[" + std::to_string(i) + "].ambient"), 0.05f, 0.05f,
-                                                 0.05f);
-            GameConstants::defaultShader.setVec3(("pointLights[" + std::to_string(i) + "].diffuse"),
-                                                 pointLightColours[i]);
-            GameConstants::defaultShader.setVec3(("pointLights[" + std::to_string(i) + "].specular"), 1.0f, 1.0f, 1.0f);
-            GameConstants::defaultShader.setFloat(("pointLights[" + std::to_string(i) + "].constant"), 1.0f);
-            GameConstants::defaultShader.setFloat(("pointLights[" + std::to_string(i) + "].linear"), 0.09f);
-            GameConstants::defaultShader.setFloat(("pointLights[" + std::to_string(i) + "].quadratic"), 0.032f);
+        if (!GameConstants::keybindsManager.TOGGLE_CAMERA->isPressd()) {
+            view = glm::lookAt(glm::vec3(8, 8, 8), glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
+        } else {
+            view = glm::lookAt(GameConstants::player->position + glm::vec3(0, 1.8, 0),
+                               GameConstants::player->position + glm::vec3(0, 1.8, 0) + front, up);
         }
 
-        glm::vec3 sunDir = glm::vec3(0.0f, 0.0f, 0.0f);
-        sunDir = GenericUtil::moveVec3(sunDir, -10, 1.0f + glfwGetTime() * 20.0f, 0);
+        glm::mat4 projection;
+        //dont divide by 0
+        int fbWidth, fbHeight;
+        glfwGetFramebufferSize(GameConstants::window, &fbWidth, &fbHeight);
+        float aspect = (fbHeight > 0) ? (float)fbWidth / fbHeight : 4.0f / 3.0f;
 
-        GameConstants::defaultShader.setVec3("dirLight.direction", sunDir);
-        GameConstants::defaultShader.setVec3("dirLight.ambient", 0.01f, 0.01f, 0.01f);
-        GameConstants::defaultShader.setVec3("dirLight.diffuse", 0.7f, 0.4f, 0.4f);
-        GameConstants::defaultShader.setVec3("dirLight.specular", 0.5f, 0.5f, 0.5f);
+        projection = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 100.0f);
 
-        GameConstants::defaultShader.setInt("pointLightsAmount", pointLightPositions.size());
+        glEnable(GL_DEPTH_TEST);
+
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        GameConstants::defaultShader.use();
+        GameConstants::defaultShader.setVec3("viewPos", GameConstants::keybindsManager.TOGGLE_CAMERA->isPressd()
+                                                            ? glm::vec3(8, 8, 8)
+                                                            : GameConstants::player->position + glm::vec3(0, 1.8, 0));
+
+        for(int i = 0; i < lightCount; ++i) {
+            std::string idx = std::to_string(i);
+            GameConstants::defaultShader.setVec3("pointLights[" + idx + "].position", lights[i].position);
+            GameConstants::defaultShader.setVec3("pointLights[" + idx + "].ambient", lights[i].ambient);
+            GameConstants::defaultShader.setVec3("pointLights[" + idx + "].diffuse", lights[i].diffuse);
+            GameConstants::defaultShader.setVec3("pointLights[" + idx + "].specular", lights[i].specular);
+            GameConstants::defaultShader.setFloat("pointLights[" + idx + "].constant", lights[i].constant);
+            GameConstants::defaultShader.setFloat("pointLights[" + idx + "].linear", lights[i].linear);
+            GameConstants::defaultShader.setFloat("pointLights[" + idx + "].quadratic", lights[i].quadratic);
+        }
+
+        GameConstants::defaultShader.setInt("pointLightsAmount", lights.size());
 
         GameConstants::defaultShader.setMat4("projection", projection);
         GameConstants::defaultShader.setMat4("view", view);
@@ -297,12 +393,12 @@ int main(int argc, char *argv[]) {
         glBindVertexArray(lightCubeVAO);
 
 
-        for (unsigned int i = 0; i < std::size(pointLightPositions); i++) {
+        for (unsigned int i = 0; i < std::size(lights); i++) {
             glm::mat4 model1 = glm::mat4(1.0f);
-            model1 = glm::translate(model1, pointLightPositions[i]);
+            model1 = glm::translate(model1, lights[i].position);
             model1 = glm::scale(model1, glm::vec3(0.2f));
             GameConstants::lightEmitterShader.setMat4("model", model1);
-            GameConstants::lightEmitterShader.setVec3("lightColour", pointLightColours[i]);
+            GameConstants::lightEmitterShader.setVec3("lightColour", lights[i].diffuse);
 
             glDrawArrays(GL_TRIANGLES, 0, 36);
         }
@@ -311,28 +407,10 @@ int main(int argc, char *argv[]) {
 
         glDepthFunc(GL_LEQUAL);
         glDepthMask(GL_FALSE);
+
         GameConstants::skyboxShader.use();
 
-        glActiveTexture(GL_TEXTURE10);
-        GameConstants::skyboxShader.setInt("starsTex", 10);
-        glBindTexture(GL_TEXTURE_2D, starsTex);
-        glActiveTexture(GL_TEXTURE11);
-        GameConstants::skyboxShader.setInt("sunTex", 11);
-        glBindTexture(GL_TEXTURE_2D, sunTex);
-        glActiveTexture(GL_TEXTURE12);
-        GameConstants::skyboxShader.setInt("moonTex", 12);
-        glBindTexture(GL_TEXTURE_2D, moonTex);
-        glActiveTexture(GL_TEXTURE13);
-        GameConstants::skyboxShader.setInt("cloudsTex", 13);
-        glBindTexture(GL_TEXTURE_2D, cloudsTex);
-        glActiveTexture(GL_TEXTURE14);
-        GameConstants::skyboxShader.setInt("daySkyTex", 14);
-        glBindTexture(GL_TEXTURE_2D, daySkyTex);
-        glActiveTexture(GL_TEXTURE15);
-        GameConstants::skyboxShader.setInt("nightSkyTex", 15);
-        glBindTexture(GL_TEXTURE_2D, nightSkyTex);
-
-        float time = (float)glfwGetTime() * 0.5f - 0.0f;
+        float time = (float) glfwGetTime() * 0.5f - 0.0f;
         GameConstants::skyboxShader.setFloat("time", time);
 
         GameConstants::skyboxShader.setMat4("view", view);
@@ -345,15 +423,31 @@ int main(int argc, char *argv[]) {
         glDepthMask(GL_TRUE);
         glDepthFunc(GL_LESS);
 
+        //disables gamma correction, so colours aren't washed out
+        if (GameConstants::debugging) {
+            glDisable(GL_FRAMEBUFFER_SRGB);
+            ImGui::Render();
+            ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+            glEnable(GL_FRAMEBUFFER_SRGB);
+        } else {
+            ImGui::EndFrame();
+        }
+
         glfwSwapBuffers(window);
         glfwPollEvents();
 
-        string title = ("Baseplate test game - Pos: " + to_string(GameConstants::player->position.x) + " " + to_string(GameConstants::player->position.y) + " " + to_string(GameConstants::player->position.z) + " Pitch: " + to_string(GameConstants::player->pitch) + " Yaw: " + to_string(GameConstants::player->yaw));
+        string title = ("Baseplate test game - Pos: " + to_string(GameConstants::player->position.x) + " " +
+                        to_string(GameConstants::player->position.y) + " " +
+                        to_string(GameConstants::player->position.z) + " Pitch: " +
+                        to_string(GameConstants::player->pitch) + " Yaw: " + to_string(GameConstants::player->yaw));
         glfwSetWindowTitle(window, title.c_str());
 
         Sleep(1000 / GameConstants::targetFPS);
     }
 
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
     glfwDestroyWindow(window);
     glfwTerminate();
 
@@ -365,12 +459,12 @@ void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
     // height will be significantly larger than specified on retina displays.
     glViewport(0, 0, width, height);
     glfwSetWindowSize(window, width, height);
-    window_width = width;
-    window_height = height;
+    GameConstants::window_width = width;
+    GameConstants::window_height = height;
 }
 
 void mouse_callback(GLFWwindow *window, double xpos, double ypos) {
-    if (lockCursor) {
+    if (!GameConstants::keybindsManager.TOGGLE_CURSOR->isPressd() && !GameConstants::debugging) {
         int windowX;
         int windowY;
         float maxSensitivity = 50.0f;
@@ -378,12 +472,14 @@ void mouse_callback(GLFWwindow *window, double xpos, double ypos) {
         glfwGetWindowPos(window, &windowX, &windowY);
 
         //we dont wan NaN from /0
-        GameConstants::player->yaw -= (xpos - (windowX + window_width / 2)) / max(maxSensitivity - sensitivity, 1.0f) / 20;
-        GameConstants::player->pitch -= (ypos - (windowY + window_height / 2)) / max(maxSensitivity - sensitivity, 1.0f) / 20;
+        GameConstants::player->yaw -= (xpos - (windowX + GameConstants::window_width / 2)) / max(maxSensitivity - sensitivity, 1.0f) /
+                20;
+        GameConstants::player->pitch -= (ypos - (windowY + GameConstants::window_height / 2)) / max(maxSensitivity - sensitivity, 1.0f)
+                / 20;
 
         GameConstants::player->yaw = glm::mod(GameConstants::player->yaw, 360.0f);
         GameConstants::player->pitch = glm::clamp(GameConstants::player->pitch, -89.0f, 89.0f);
 
-        glfwSetCursorPos(window, windowX + window_width / 2, windowY + window_height / 2);
+        glfwSetCursorPos(window, windowX + GameConstants::window_width / 2, windowY + GameConstants::window_height / 2);
     }
 }

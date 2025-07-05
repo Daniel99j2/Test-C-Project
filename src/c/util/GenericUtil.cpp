@@ -1,21 +1,12 @@
 #include "GenericUtil.h"
-#include "GenericUtil.h"
-#include "GenericUtil.h"
-#include "GenericUtil.h"
-#include "GenericUtil.h"
-#include "GenericUtil.h"
-#include "GenericUtil.h"
-#include "GenericUtil.h"
-#include "GenericUtil.h"
-#include "GenericUtil.h"
-#include "GenericUtil.h"
-#include "GenericUtil.h"
 
 #include <iostream>
 #include <chrono>
 #include <random>
-#include "GenericUtil.h"
 
+#include "GameConstants.h"
+#include "../../../libs/glew/include/GL/glew.h"
+#include <GLFW/glfw3.h>
 #include "libs/glm/vec3.hpp"
 #include "libs/glm/detail/func_geometric.inl"
 #include "libs/glm/detail/func_trigonometric.inl"
@@ -50,4 +41,41 @@ glm::vec3 GenericUtil::moveVec3(glm::vec3 vec, double acceleration, float pitch,
     glm::vec3 accelerationVector(x, y, z);
     accelerationVector = glm::normalize(accelerationVector);
     return vec = vec + accelerationVector * glm::vec3(acceleration);
+}
+
+//guess what monitor is used
+GLFWmonitor* GenericUtil::getCurrentMonitor(GLFWwindow* window) {
+    int nmonitors;
+    GLFWmonitor** monitors = glfwGetMonitors(&nmonitors);
+    if (!monitors) return nullptr;
+
+    int wx, wy;
+    glfwGetWindowPos(window, &wx, &wy);
+
+    GLFWmonitor* bestMonitor = nullptr;
+    int bestOverlap = 0;
+
+    for (int i = 0; i < nmonitors; i++) {
+        GLFWmonitor* monitor = monitors[i];
+
+        int mx, my;
+        glfwGetMonitorPos(monitor, &mx, &my);
+
+        const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+        if (!mode) continue;
+
+        int mw = mode->width;
+        int mh = mode->height;
+
+        int overlapX = std::max(0, std::min(wx + GameConstants::window_width, mx + mw) - std::max(wx, mx));
+        int overlapY = std::max(0, std::min(wy + GameConstants::window_height, my + mh) - std::max(wy, my));
+        int overlapArea = overlapX * overlapY;
+
+        if (overlapArea > bestOverlap) {
+            bestOverlap = overlapArea;
+            bestMonitor = monitor;
+        }
+    }
+
+    return bestMonitor;
 }

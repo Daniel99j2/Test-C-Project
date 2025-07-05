@@ -19,7 +19,7 @@ public:
     static Model getModel(std::string name);
 
 private:
-    static Model genModel(const std::string& filePath);
+    static Model genModel(const std::string &filePath);
 
     static void saveCBModel(const std::string &filepath, const Model &model);
 

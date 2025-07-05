@@ -7,7 +7,7 @@
 #include "libs/glm/glm.hpp"
 
 enum Channel { Position, Rotation, Scale };
-enum Interpolation { Linear };
+enum Interpolation { Linear, Smooth };
 enum LoopMode { Once, Loop, Hold };
 
 struct Vec3 {

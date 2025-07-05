@@ -10,4 +10,6 @@ public:
     explicit Player(const glm::vec3& vec);
 
     void tick() override;
+
+    void move(bool w, bool a, bool s, bool d);
 };

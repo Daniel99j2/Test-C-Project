@@ -14,28 +14,30 @@
 
 class RenderUtil {
 public:
-    static GLuint loadShader(const char *filePath, GLenum type);
+	static GLuint loadShader(const char *filePath, GLenum type);
 
-    static std::string loadShaderSource(const char *filePath);
+	static std::string loadShaderSource(const char *filePath);
 
-    static GLuint createShaderProgram(const char * str, const char * text);
+	static GLuint createShaderProgram(const char *str, const char *text);
 
-    static GLuint genTexture(std::string path);
+	static GLuint genTexture(std::string path);
 
-    static GLuint genPBR(std::string path);
+	static GLFWimage *getImageData(std::string path);
 
-    static void genOrLoadAtlas(const std::string &folder, const std::string &atlasPng, const std::string &atlasMeta,
-                                 const std::string &merPng, const std::string &merMeta, bool forceRegenerate);
+	static GLuint genPBR(std::string path);
 
-    static GLuint getAtlas();
+	static void genOrLoadAtlas(const std::string &folder, const std::string &atlasPng, const std::string &atlasMeta,
+	                           const std::string &merPng, const std::string &merMeta, bool forceRegenerate);
 
-    static GLuint getMERAtlas();
+	static GLuint getAtlas();
 
-    static glm::vec2 getUV(const std::string& texturePath, const glm::vec2& originalUV);
+	static GLuint getMERAtlas();
 
-    struct AtlasRegion {
-        glm::vec2 uvMin; // (u, v)
-        glm::vec2 uvMax; // (u, v)
-        int width, height;
-    };
+	static glm::vec2 getUV(const std::string &texturePath, const glm::vec2 &originalUV);
+
+	struct AtlasRegion {
+		glm::vec2 uvMin; // (u, v)
+		glm::vec2 uvMax; // (u, v)
+		int width, height;
+	};
 };

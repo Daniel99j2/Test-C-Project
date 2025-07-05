@@ -3,6 +3,8 @@
 //
 
 #pragma once
+#include "../../../libs/glew/include/GL/glew.h"
+#include <GLFW/glfw3.h>
 #include "libs/glm/vec3.hpp"
 
 
@@ -15,4 +17,6 @@ public:
     static float randomFloat(float min, float max);
 
     static glm::vec3 moveVec3(glm::vec3 vec, double acceleration, float pitch, float yaw);
+
+    static GLFWmonitor *getCurrentMonitor(GLFWwindow *window);
 };

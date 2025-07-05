@@ -3,6 +3,7 @@
 #include <iostream>
 #include <random>
 #include "../../../libs/glew/include/GL/glew.h"
+#include <GLFW/glfw3.h>
 #include <fstream>
 #include <sstream>
 #include "../../../libs/glm/vec3.hpp"
@@ -110,6 +111,15 @@ GLuint RenderUtil::genTexture(string path) {
         stbi_image_free(data);
     }
     return textureID;
+}
+
+//need to clear data once done!
+GLFWimage *RenderUtil::getImageData(string path) {
+    path = path + ".png";
+
+    int width, height, nrComponents;
+    unsigned char *data = stbi_load(path.c_str(), &width, &height, &nrComponents, 0);
+    return new GLFWimage(width, height, data);
 }
 
 //use an image path. returns -1 if null

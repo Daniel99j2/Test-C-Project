@@ -40,6 +40,23 @@ add_executable(
         src/c/util/Animation.h
         src/c/util/AnimatorInstance.cpp
         src/c/util/AnimatorInstance.h
+        src/c/util/Keybind.h
+        src/c/util/Keybinds.h
+        src/c/util/Keybind.cpp
+        libs/imgui/backends/imgui_impl_glfw.cpp
+        libs/imgui/backends/imgui_impl_opengl3.cpp
+        libs/imgui/imgui.cpp
+        libs/imgui/imgui_demo.cpp
+        libs/imgui/imgui_draw.cpp
+        libs/imgui/imgui_tables.cpp
+        libs/imgui/imgui_widgets.cpp
+        libs/imgui/backends/imgui_impl_glfw.cpp
+        libs/imgui/backends/imgui_impl_opengl3.cpp
+)
+
+include_directories(
+        libs/imgui
+        libs/imgui/backends
 )
 
 file(COPY src/resources DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/src)
@@ -53,6 +70,18 @@ add_custom_target(copy_resources ALL
         ${CMAKE_CURRENT_SOURCE_DIR}/src/resources
         ${CMAKE_CURRENT_BINARY_DIR}/src/resources
         COMMENT "Copying sources"
+)
+
+target_sources(Main PRIVATE
+        libs/imgui/backends/imgui_impl_glfw.cpp
+        libs/imgui/backends/imgui_impl_opengl3.cpp
+        libs/imgui/imgui.cpp
+        libs/imgui/imgui_demo.cpp
+        libs/imgui/imgui_draw.cpp
+        libs/imgui/imgui_tables.cpp
+        libs/imgui/imgui_widgets.cpp
+        libs/imgui/backends/imgui_impl_glfw.cpp
+        libs/imgui/backends/imgui_impl_opengl3.cpp
 )
 
 target_link_libraries(Main PRIVATE glew)

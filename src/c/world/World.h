@@ -12,6 +12,8 @@ class World {
 public:
     void drawWorld(float deltaTime) const;
 
+    void drawDepth(Shader shader) const;
+
     void tick() const;
 
     void addObject(std::shared_ptr<GameObject> object);

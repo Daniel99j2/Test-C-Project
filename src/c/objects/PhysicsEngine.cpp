@@ -9,7 +9,9 @@
 #include "libs/glm/glm.hpp"
 #include <unordered_map>
 #include <cmath>
+#include <iostream>
 
+class GameObject;
 constexpr float GRID_SIZE = 5.0f;
 
 struct GridCoord {
@@ -52,6 +54,7 @@ void PhysicsObject::update(float dt) {
     if (!isStatic) {
         velocity += glm::vec3(0.0f, -gravity, 0.0f) * dt; // -0.98 is gravity
         position += velocity * dt;
+        std::cout << ((GameObject) this ).type << velocity.x << std::endl;
     }
     collisions.clear();
 }
