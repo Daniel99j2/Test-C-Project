@@ -81,14 +81,6 @@ public:
                                                           []() {
                                                           }, []() {
                                                           });
-    std::shared_ptr<Keybind> TOGGLE_DEBUG = make_keybind(GLFW_KEY_F7, Keybind::TOGGLE, "Toggle Debug",
-                                                         []() {
-                                                             GameConstants::debug = true;
-                                                         },
-                                                         []() {
-                                                         }, []() {
-                                                             GameConstants::debug = false;
-                                                         });
     std::shared_ptr<Keybind> TOGGLE_DEBUGGING = make_keybind(GLFW_KEY_GRAVE_ACCENT, Keybind::TOGGLE, "Toggle Debugging",
                                                      []() {
                                                          if (GameConstants::debug) GameConstants::debugging = true;

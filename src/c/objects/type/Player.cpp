@@ -21,7 +21,7 @@ void Player::tick() {
 }
 
 void Player::move(bool w, bool a, bool s, bool d) {
-    float max_speed = 200;
+    float max_speed = 10;
     glm::vec3 front;
     front.x = cos(glm::radians(pitch)) * sin(glm::radians(yaw));
     front.y = sin(glm::radians(pitch));

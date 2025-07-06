@@ -15,13 +15,15 @@
 #include "../../../libs/glm/gtc/type_ptr.hpp"
 #include "util/GenericUtil.h"
 #include <string>
+#include <thread>
+
 #include "../../../libs/json.hpp"
 #include "../../../libs/imgui/imgui.h"
 #include "../../../libs/imgui/imgui.h"
 #include "../../../libs/imgui/backends/imgui_impl_glfw.h"
 #include "../../libs/imgui/backends/imgui_impl_opengl3.h"
 #include "libs/stb_image.h"
-#include "objects/PhysicsEngine.h"
+#include "util/Logger.h"
 #include "util/GameConstants.h"
 #include "util/Model.h"
 
@@ -32,6 +34,7 @@
 #include "objects/type/SimpleObject.h"
 #include "util/Keybind.h"
 #include "util/Keybinds.h"
+#include "util/Profiler.h"
 #include "world/World.h"
 //the bin folder contents needs to be copied!
 
@@ -55,29 +58,13 @@ struct Light {
     glm::vec3 specular;
 };
 
-constexpr unsigned int SHADOW_WIDTH = 1024, SHADOW_HEIGHT = 1024;
-constexpr int MAX_POINT_LIGHTS = 4;
-std::vector<unsigned int> depthCubemaps;
-std::vector<unsigned int> depthMapFBOs;
-
 std::vector<Light> lights;
-
-std::vector<glm::mat4> getPointLightShadowTransforms(const glm::vec3 &lightPos, float near_plane, float far_plane) {
-    glm::mat4 shadowProj = glm::perspective(glm::radians(90.0f), 1.0f, near_plane, far_plane);
-    std::vector<glm::mat4> shadowTransforms;
-    shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3(1, 0, 0), glm::vec3(0,-1,0)));
-    shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3(-1, 0, 0), glm::vec3(0,-1,0)));
-    shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3(0, 1, 0), glm::vec3(0, 0, 1)));
-    shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3(0, -1, 0), glm::vec3(0, 0, -1)));
-    shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3(0, 0, 1), glm::vec3(0,-1,0)));
-    shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3(0, 0, -1), glm::vec3(0,-1,0)));
-    return shadowTransforms;
-}
 
 std::map<std::string, bool> debugCheckboxes;
 
 int main(int argc, char *argv[]) {
-    cout << "Game loading..." << endl;
+    Logger logger;
+    cout << "[INFO] Game loading..." << endl;
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -90,6 +77,8 @@ int main(int argc, char *argv[]) {
             }
         }
     }
+
+    GameConstants::debug = args.contains("debug");
 
     if (!glfwInit()) {
         return -1;
@@ -105,7 +94,7 @@ int main(int argc, char *argv[]) {
     GLFWwindow *window = glfwCreateWindow(GameConstants::window_width, GameConstants::window_height, "Baseplate Test", NULL, NULL);
     GameConstants::window = window;
     if (!window) {
-        std::cerr << "Couldn't create the window!" << std::endl;
+        std::cerr << "[ERROR] Couldn't create the window!" << std::endl;
         glfwTerminate();
         return -1;
     }
@@ -116,7 +105,7 @@ int main(int argc, char *argv[]) {
     glEnable(GL_DEPTH_TEST);
 
     if (const GLenum err = glewInit(); err != GLEW_OK) {
-        std::cerr << "GLEW init failed: " << glewGetErrorString(err) << std::endl;
+        std::cerr << "[ERROR] GLEW init failed: " << glewGetErrorString(err) << std::endl;
         return -1;
     }
 
@@ -210,39 +199,6 @@ int main(int argc, char *argv[]) {
     glGenVertexArrays(1, &lightCubeVAO);
     glBindVertexArray(lightCubeVAO);
 
-    int lightCount = (int) lights.size();
-    if(lightCount > MAX_POINT_LIGHTS) lightCount = MAX_POINT_LIGHTS;
-
-
-    depthCubemaps.resize(lightCount);
-    depthMapFBOs.resize(lightCount);
-
-    glGenFramebuffers(lightCount, depthMapFBOs.data());
-    glGenTextures(lightCount, depthCubemaps.data());
-
-    for(int i = 0; i < lightCount; ++i) {
-        glBindTexture(GL_TEXTURE_CUBE_MAP, depthCubemaps[i]);
-        for (unsigned int face = 0; face < 6; ++face) {
-            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, 0, GL_DEPTH_COMPONENT,
-                         SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
-        }
-        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-
-        glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBOs[i]);
-        glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, depthCubemaps[i], 0);
-        glDrawBuffer(GL_NONE);
-        glReadBuffer(GL_NONE);
-
-        if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-            std::cerr << "Point Shadow Framebuffer not complete for light " << i << endl;
-        }
-    }
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
     GLFWimage *icon = RenderUtil::getImageData("src/resources/textures/noatlas/icon");
     glfwSetWindowIcon(window, 1, icon);
     stbi_image_free(icon->pixels);
@@ -251,7 +207,7 @@ int main(int argc, char *argv[]) {
     GameConstants::defaultShader = Shader("default");
     GameConstants::skyboxShader = Shader("skybox");
     GameConstants::lightEmitterShader = Shader("lighting");
-    Shader pointShadowShader("point_shadow", true);
+    Shader pointShadowShader("point_shadow");
 
     GameConstants::defaultShader.use();
 
@@ -266,15 +222,16 @@ int main(int argc, char *argv[]) {
 
     glm::vec3 lightPos(1.5f, 1.0f, -2.3f);
 
-    cout << "Game loaded! \nGame took " << glfwGetTime() - startTime << " seconds to start!" << endl;
+    cout << "[INFO] Game loaded!" << endl;
+    cout << "[INFO] Game took " << glfwGetTime() - startTime << " seconds to start!" << endl;
 
-    auto world = World();
-    GameConstants::player = std::make_shared<Player>(glm::vec3(0, 10, 0));;
-    world.addObject(std::static_pointer_cast<GameObject>(GameConstants::player));
+    GameConstants::world = World();
+    GameConstants::player = std::make_shared<Player>(glm::vec3(5, 10, 0));;
+    GameConstants::world.addObject(std::static_pointer_cast<GameObject>(GameConstants::player));
     GameConstants::player->gravity = 0;
 
     auto g = std::make_shared<SimpleObject>(glm::vec3(0, 0, 0));
-    world.addObject(std::static_pointer_cast<GameObject>(g));
+    GameConstants::world.addObject(std::static_pointer_cast<GameObject>(g));
     g->gravity = 0;
 
     g->animator.play(&g->model.animations[0]);
@@ -290,8 +247,23 @@ int main(int argc, char *argv[]) {
     //gamma correction
     glEnable(GL_FRAMEBUFFER_SRGB);
 
-    while (!glfwWindowShouldClose(window)) {
+    glfwSwapInterval(0);
 
+    for (int i = 0; i < 5; ++i) {
+        cerr << (i + "[ERROR] Test Error") << endl;
+        cerr << "[WARN] Test Error" << endl;
+        cout << "[INFO] Working!" << endl;
+    }
+
+    while (!glfwWindowShouldClose(window)) {
+        auto now = std::chrono::high_resolution_clock::now();
+        float deltaTime = std::chrono::duration<float>(now - lastFrameTime).count();
+        lastFrameTime = now;
+
+        auto oldProfilerResults = Profiler::getResults();
+        Profiler::beginFrame();
+
+        Profiler::beginSection("ImGui");
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
@@ -308,16 +280,29 @@ int main(int argc, char *argv[]) {
         ImGui::InputInt("FPS", &GameConstants::targetFPS);
 
         ImGui::SeparatorText("Player");
+        if (ImGui::Button("Launch"))
+            for (const auto &object: GameConstants::world.getObjects()) {
+                object->velocity = glm::vec3(5, 5, 5);
+            };
         ImGui::End();
+
+        ImGui::Begin("Profiler");
+        for (const auto& [name, res] : oldProfilerResults) {
+            ImGui::Text("%s: %.3f s (%.3f ms avg, %d calls)", name.c_str(),
+                        res.totalTime / 1000.0f,
+                        res.totalTime / res.callCount,
+                        res.callCount);
+        }
+        ImGui::End();
+        Profiler::endSection("ImGui");
+
+        logger.render();
 
         if (GameConstants::wireframe) glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
         else glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-        //the deltaTime makes it so even if it is lagging, the game still has the animation play at the same irl speed
-        auto now = std::chrono::high_resolution_clock::now();
-        float deltaTime = std::chrono::duration<float>(now - lastFrameTime).count();
-        lastFrameTime = now;
 
+        Profiler::beginSection("Input");
         for (auto &k: GameConstants::keybindsManager.keybinds) k->update(window);
         glfwSetInputMode(window, GLFW_CURSOR, !GameConstants::keybindsManager.TOGGLE_CURSOR->isPressd() && !GameConstants::debugging
                                                   ? GLFW_CURSOR_DISABLED
@@ -334,9 +319,11 @@ int main(int argc, char *argv[]) {
 
         glm::vec3 flatFront = glm::normalize(glm::vec3(front.x, 0.0f, front.z));
         glm::vec3 flatRight = glm::normalize(glm::vec3(right.x, 0.0f, right.z));
+        Profiler::endSection("Input");
 
-        world.tick();
-        GameConstants::physicsEngine.simulate(1);
+        Profiler::beginSection("World Tick");
+        GameConstants::world.tick(deltaTime);
+        Profiler::endSection("World Tick");
 
         auto model = glm::mat4(1.0f);
         auto view = glm::mat4(1.0f);
@@ -357,14 +344,13 @@ int main(int argc, char *argv[]) {
 
         glEnable(GL_DEPTH_TEST);
 
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
+        Profiler::beginSection("Lighting");
         GameConstants::defaultShader.use();
         GameConstants::defaultShader.setVec3("viewPos", GameConstants::keybindsManager.TOGGLE_CAMERA->isPressd()
                                                             ? glm::vec3(8, 8, 8)
                                                             : GameConstants::player->position + glm::vec3(0, 1.8, 0));
 
-        for(int i = 0; i < lightCount; ++i) {
+        for(int i = 0; i < lights.size(); ++i) {
             std::string idx = std::to_string(i);
             GameConstants::defaultShader.setVec3("pointLights[" + idx + "].position", lights[i].position);
             GameConstants::defaultShader.setVec3("pointLights[" + idx + "].ambient", lights[i].ambient);
@@ -377,6 +363,8 @@ int main(int argc, char *argv[]) {
 
         GameConstants::defaultShader.setInt("pointLightsAmount", lights.size());
 
+        Profiler::endSection("Lighting");
+
         GameConstants::defaultShader.setMat4("projection", projection);
         GameConstants::defaultShader.setMat4("view", view);
         GameConstants::defaultShader.setMat4("model", model);
@@ -384,7 +372,9 @@ int main(int argc, char *argv[]) {
         glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        world.drawWorld(deltaTime);
+        Profiler::beginSection("Render");
+        GameConstants::world.drawWorld(deltaTime);
+        Profiler::endSection("Render");
 
         GameConstants::lightEmitterShader.use();
         GameConstants::lightEmitterShader.setMat4("projection", projection);
@@ -442,7 +432,12 @@ int main(int argc, char *argv[]) {
                         to_string(GameConstants::player->pitch) + " Yaw: " + to_string(GameConstants::player->yaw));
         glfwSetWindowTitle(window, title.c_str());
 
-        Sleep(1000 / GameConstants::targetFPS);
+        Profiler::endFrame();
+
+        float targetFrameTime = 1.0f / GameConstants::targetFPS;
+        if (deltaTime < targetFrameTime) {
+            std::this_thread::sleep_for(std::chrono::duration<float>(targetFrameTime - deltaTime));
+        }
     }
 
     ImGui_ImplOpenGL3_Shutdown();

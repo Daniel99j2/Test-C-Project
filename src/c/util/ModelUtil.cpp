@@ -39,7 +39,7 @@ std::string readString(std::ifstream &in) {
 Model ModelUtil::genModel(const string &filePath) {
     ifstream file(("src/resources/models/" + filePath + ".bbmodel"));
     if (!file.is_open()) {
-        cerr << "Failed to open model file: " << filePath << endl;
+        cerr << "[ERROR] Failed to open model file: " << filePath << endl;
         throw std::runtime_error("Failed to open model file");
     }
 
@@ -161,7 +161,7 @@ Model ModelUtil::genModel(const string &filePath) {
         if (loopStr == "loop") anim.loopMode = Loop;
         else if (loopStr == "once") anim.loopMode = Once;
         else {
-            cout << "Unknown loop type: " << loopStr << endl;
+            cerr << "[WARN] Unknown loop type: " << loopStr << endl;
             anim.loopMode = Once;
         };
 
@@ -180,7 +180,7 @@ Model ModelUtil::genModel(const string &filePath) {
                 else if (chStr == "rotation") kf.channel = Channel::Rotation;
                 else if (chStr == "scale") kf.channel = Channel::Scale;
                 else {
-                    cout << "Unknown animation channel: " << chStr << endl;
+                    cerr << "[WARN] Unknown animation channel: " << chStr << endl;
                     continue;
                 };
 

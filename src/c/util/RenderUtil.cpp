@@ -107,7 +107,7 @@ GLuint RenderUtil::genTexture(string path) {
 
         stbi_image_free(data);
     } else {
-        std::cout << "Texture failed to load at path: " << path << std::endl;
+        std::cerr << "[WARN] Texture failed to load at path: " << path << std::endl;
         stbi_image_free(data);
     }
     return textureID;
@@ -323,7 +323,7 @@ void RenderUtil::genOrLoadAtlas(const std::string &folder, const std::string &at
             return rectpack2D::callback_result::CONTINUE_PACKING;
         },
         [](rect_xywh &) {
-            cout << "Error packing!" << endl;
+            cerr << "[ERROR] Error packing!" << endl;
             return rectpack2D::callback_result::ABORT_PACKING;
         },
         flipping_option::DISABLED

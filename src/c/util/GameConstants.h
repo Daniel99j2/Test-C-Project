@@ -10,7 +10,6 @@
 
 class World;
 class Player;
-class PhysicsEngine;
 class Shader;
 class Keybinds;
 
@@ -28,7 +27,6 @@ public:
     static Shader skyboxShader;
     static Shader lightEmitterShader;
 
-    static PhysicsEngine physicsEngine;
     static std::shared_ptr<Player> player;
     static World world;
     static Keybinds keybindsManager;

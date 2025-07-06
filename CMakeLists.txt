@@ -25,8 +25,6 @@ add_executable(
         src/c/util/Mesh.h
         src/c/objects/GameObject.cpp
         src/c/objects/GameObject.h
-        src/c/objects/PhysicsEngine.cpp
-        src/c/objects/PhysicsEngine.h
         src/c/objects/LivingObject.cpp
         src/c/objects/LivingObject.h
         src/c/objects/type/Player.cpp
@@ -52,6 +50,8 @@ add_executable(
         libs/imgui/imgui_widgets.cpp
         libs/imgui/backends/imgui_impl_glfw.cpp
         libs/imgui/backends/imgui_impl_opengl3.cpp
+        src/c/util/Profiler.h
+        src/c/util/Logger.h
 )
 
 include_directories(

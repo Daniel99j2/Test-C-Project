@@ -21,8 +21,6 @@ Shader GameConstants::defaultShader;
 Shader GameConstants::skyboxShader;
 Shader GameConstants::lightEmitterShader;
 
-PhysicsEngine GameConstants::physicsEngine;
-
 std::shared_ptr<Player> GameConstants::player;
 World GameConstants::world;
 

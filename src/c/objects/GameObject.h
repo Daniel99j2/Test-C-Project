@@ -1,32 +1,48 @@
-//
-// Created by dj on 22/06/2025.
-//
-
 #pragma once
 #include <string>
+#include <vector>
+#include <memory>
 
-#include "PhysicsEngine.h"
 #include "libs/glm/glm.hpp"
 #include "src/c/util/AnimatorInstance.h"
 #include "src/c/util/Model.h"
 #include "src/c/util/Shader.h"
 
-class GameObject : public PhysicsObject {
+enum class ShapeType {
+    Rectangle,
+    Sphere,
+    Cylinder
+};
+
+struct Collision {
+    std::shared_ptr<class GameObject> other;
+    glm::vec3 point;
+};
+
+class GameObject {
 public:
+    ShapeType shape;
+    glm::vec3 position;
+    glm::vec3 size;
+    glm::vec3 velocity = glm::vec3(0);
+    float mass;
+    float gravity;
+    bool isStatic = false;
+    std::vector<Collision> collisions;
+
+    void applySlowdown(float drag);
+    void update(float dt);
+
     Model model;
     Shader shader;
     AnimatorInstance animator = AnimatorInstance();
     std::string type;
-    glm::vec3 velocity = glm::vec3(0);
     float pitch = 0;
     float yaw = 0;
     glm::mat4 transform = glm::mat4(1.0f);
     int id = -1;
 
     void draw(float deltaTime);
-
-    void drawDepth(Shader shader1);
-
     void baseTick();
     virtual void tick() = 0;
     virtual ~GameObject() = default;

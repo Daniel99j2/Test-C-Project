@@ -6,6 +6,7 @@
 #include <cmath>
 #include <stdexcept>
 
+#include "Profiler.h"
 #include "libs/glm/ext/matrix_transform.hpp"
 #include "libs/glm/ext/quaternion_common.hpp"
 #include "libs/glm/gtc/quaternion.hpp"
@@ -30,6 +31,7 @@ void AnimatorInstance::cancel(const std::string &animName) {
 }
 
 void AnimatorInstance::tick(float deltaTime) {
+    Profiler::beginSection("Tick animation");
     for (auto &[name, inst]: playingAnims) {
         if (!inst.playing) continue;
         inst.time += deltaTime;
@@ -52,9 +54,11 @@ void AnimatorInstance::tick(float deltaTime) {
             }
         }
     }
+    Profiler::endSection("Tick animation");
 }
 
 glm::mat4 AnimatorInstance::getTransform(const std::string& boneName) const {
+    Profiler::beginSection("Calculate animation");
     glm::vec3 position(0.0f), rotationEuler(0.0f), scale(1.0f);
     int topPriority = -1000000;
 
@@ -106,6 +110,7 @@ glm::mat4 AnimatorInstance::getTransform(const std::string& boneName) const {
     transform *= glm::mat4(rotQuat);
     transform = glm::scale(transform, scale);
     transform = glm::translate(transform, -origin);
+    Profiler::endSection("Calculate animation");
     return transform;
 }
 
