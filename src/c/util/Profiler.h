@@ -41,6 +41,9 @@ public:
 		return results;
 	}
 
+	static float fpsHistory[100];
+	static int fpsIndex;
+
 private:
 	static inline std::unordered_map<std::string, std::chrono::high_resolution_clock::time_point> startTimes;
 	static inline std::unordered_map<std::string, ProfileResult> results;

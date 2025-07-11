@@ -1,24 +1,29 @@
 cmake_minimum_required(VERSION 3.31)
+set(USERPROFILE_DIR $ENV{USERPROFILE})
+set(CMAKE_TOOLCHAIN_FILE "${USERPROFILE_DIR}/vcpkg/scripts/buildsystems/vcpkg.cmake" CACHE STRING "Vcpkg toolchain file")
+set(VCPKG_TARGET_TRIPLET "x64-windows-static" CACHE STRING "")
+set(CMAKE_CXX_FLAGS_RELEASE "/O2 /Ob2 /DNDEBUG")
 project(Main)
 
 set(CMAKE_CXX_STANDARD 20)
 
-add_subdirectory(libs/glew/build/cmake)
-add_subdirectory(libs/glfw)
-add_subdirectory(libs/glm)
-# Note that packer is modified!
 add_subdirectory(libs/packer)
 
 find_package(OpenGL REQUIRED)
+find_package(assimp REQUIRED)
+find_package(glm REQUIRED)
+find_package(GLEW REQUIRED)
+find_package(glfw3 REQUIRED)
 
 add_executable(
-        Main src/c/main.cpp
+        Main
+        src/c/main.cpp
+        src/c/PreImports.cpp
+        src/c/PreImports.h
         src/c/util/RenderUtil.cpp
         src/c/util/RenderUtil.h
         src/c/util/GenericUtil.cpp
         src/c/util/GenericUtil.h
-        libs/stb_image.h
-        libs/stb_image_write.h
         libs/json.hpp
         src/c/util/ModelUtil.cpp
         src/c/util/ModelUtil.h
@@ -52,6 +57,7 @@ add_executable(
         libs/imgui/backends/imgui_impl_opengl3.cpp
         src/c/util/Profiler.h
         src/c/util/Logger.h
+        src/c/util/Profiler.cpp
 )
 
 include_directories(
@@ -61,10 +67,6 @@ include_directories(
 
 file(COPY src/resources DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/src)
 
-# This makes it so the .dlls and libraries are in it
-set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++")
-
-# This makes it so the src folder is actually copied
 add_custom_target(copy_resources ALL
         COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_CURRENT_SOURCE_DIR}/src/resources
@@ -84,7 +86,13 @@ target_sources(Main PRIVATE
         libs/imgui/backends/imgui_impl_opengl3.cpp
 )
 
-target_link_libraries(Main PRIVATE glew)
-target_link_libraries(Main PRIVATE glfw)
-target_link_libraries(Main PRIVATE glm)
-target_link_libraries(Main PRIVATE rectpack2D)
+target_link_libraries(Main PRIVATE
+        GLEW::GLEW
+        glfw
+        OpenGL::GL
+        assimp::assimp
+        glm::glm
+        rectpack2D
+)
+
+target_precompile_headers(Main PRIVATE src/c/PreImports.h)

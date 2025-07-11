@@ -6,7 +6,7 @@
 
 #include "../objects/type/Player.h"
 #include "Keybinds.h"
-#include "src/c/world/World.h"
+#include "../world/World.h"
 
 bool GameConstants::wireframe = false;
 bool GameConstants::debug = false;

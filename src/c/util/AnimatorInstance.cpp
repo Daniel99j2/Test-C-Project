@@ -7,9 +7,9 @@
 #include <stdexcept>
 
 #include "Profiler.h"
-#include "libs/glm/ext/matrix_transform.hpp"
-#include "libs/glm/ext/quaternion_common.hpp"
-#include "libs/glm/gtc/quaternion.hpp"
+#include <glm/ext/matrix_transform.hpp>
+#include <glm/ext/quaternion_common.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 void AnimatorInstance::play(const Animation *anim, int priority, bool loop) {
     playingAnims[anim->name] = {

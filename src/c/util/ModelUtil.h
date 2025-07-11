@@ -3,25 +3,17 @@
 //
 
 #pragma once
-#include <iosfwd>
 #include <string>
-#include <vector>
-#include <vector>
 
-#include "Animation.h"
-
+struct Vertex;
+class CollisionPart;
 class Model;
 
 class ModelUtil {
 public:
-    static void loadModels(bool forceRegen);
+    static Model loadModelFromFile(const std::string &path);
 
-    static Model getModel(std::string name);
+    static void loadModels();
 
-private:
-    static Model genModel(const std::string &filePath);
-
-    static void saveCBModel(const std::string &filepath, const Model &model);
-
-    static Model loadCBModel(const std::string &filepath);
+    static Model* getModel(const std::string &name);
 };

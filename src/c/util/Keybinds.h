@@ -57,16 +57,22 @@ public:
                                                     []() {
                                                     },
                                                     []() {
-                                                        GameConstants::player->position.y +=
-                                                                GameConstants::player->speed;
+                                                        float max_speed = 10;
+                                                        GameConstants::player->velocity.y += GameConstants::player->speed;
+
+                                                        if (GameConstants::player->velocity.y > max_speed)
+                                                            GameConstants::player->velocity.y = (glm::normalize(GameConstants::player->velocity) * max_speed).y;
                                                     }, []() {
                                                     });
     std::shared_ptr<Keybind> MOVE_DOWN = make_keybind(GLFW_KEY_LEFT_SHIFT, Keybind::HOLD, "Move Down",
                                                       []() {
                                                       },
                                                       []() {
-                                                          GameConstants::player->position.y -=
-                                                                  GameConstants::player->speed;
+                                                          float max_speed = 10;
+                                                          GameConstants::player->velocity.y -= GameConstants::player->speed;
+
+                                                          if (GameConstants::player->velocity.y < -max_speed)
+                                                              GameConstants::player->velocity.y = (glm::normalize(GameConstants::player->velocity) * max_speed).y;
                                                       }, []() {
                                                       });
     std::shared_ptr<Keybind> TOGGLE_CAMERA = make_keybind(GLFW_KEY_C, Keybind::TOGGLE, "Toggle Camera",

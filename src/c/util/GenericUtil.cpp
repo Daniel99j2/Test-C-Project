@@ -5,11 +5,6 @@
 #include <random>
 
 #include "GameConstants.h"
-#include "../../../libs/glew/include/GL/glew.h"
-#include <GLFW/glfw3.h>
-#include "libs/glm/vec3.hpp"
-#include "libs/glm/detail/func_geometric.inl"
-#include "libs/glm/detail/func_trigonometric.inl"
 using namespace std;
 
 int GenericUtil::randomInt(int min, int max) {

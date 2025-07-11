@@ -4,7 +4,7 @@
 
 #include "Player.h"
 
-#include "src/c/util/ModelUtil.h"
+#include "../../util/ModelUtil.h"
 
 Player::Player(const glm::vec3& vec)
     : LivingObject(vec) {

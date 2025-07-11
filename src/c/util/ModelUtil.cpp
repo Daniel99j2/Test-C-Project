@@ -8,13 +8,19 @@
 #include <random>
 #include "../../../libs/json.hpp"
 // ReSharper disable once CppUnusedIncludeDirective
-#include "../../../libs/glew/include/GL/glew.h"
+#include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <fstream>
 #include <sstream>
 
 #include "Animation.h"
 #include "../util/Model.h"
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
+
+#include "../objects/GameObject.h"
+#include "../world/World.h"
 
 using namespace std;
 
@@ -22,246 +28,297 @@ map<std::string, Model> models = {};
 
 Model invalidModel = Model();
 
-void writeString(std::ofstream &out, const std::string &str) {
-    uint32_t len = str.size();
-    out.write(reinterpret_cast<char *>(&len), sizeof(len));
-    out.write(str.c_str(), len);
+static glm::vec3 aiVecToGlm(const aiVector3D& v) {
+    return glm::vec3(v.x, v.y, v.z);
 }
 
-std::string readString(std::ifstream &in) {
-    uint32_t len;
-    in.read(reinterpret_cast<char *>(&len), sizeof(len));
-    std::string str(len, '\0');
-    in.read(&str[0], len);
-    return str;
+static glm::vec2 aiVec2ToGlm(const aiVector3D& v) {
+    return glm::vec2(v.x, v.y);
 }
 
-Model ModelUtil::genModel(const string &filePath) {
-    ifstream file(("src/resources/models/" + filePath + ".bbmodel"));
-    if (!file.is_open()) {
-        cerr << "[ERROR] Failed to open model file: " << filePath << endl;
-        throw std::runtime_error("Failed to open model file");
+static glm::quat aiQuatToGlm(const aiQuaternion& q) {
+    return glm::quat(q.w, q.x, q.y, q.z);
+}
+
+static glm::mat4 aiMatrix4x4ToGlm(const aiMatrix4x4& m) {
+    return glm::mat4(
+        m.a1, m.b1, m.c1, m.d1,
+        m.a2, m.b2, m.c2, m.d2,
+        m.a3, m.b3, m.c3, m.d3,
+        m.a4, m.b4, m.c4, m.d4
+    );
+}
+
+static std::vector<Vertex> processVertices(aiMesh* mesh) {
+    std::vector<Vertex> vertices(mesh->mNumVertices);
+
+    for (unsigned int i = 0; i < mesh->mNumVertices; ++i) {
+        Vertex& v = vertices[i];
+        v.Position = aiVecToGlm(mesh->mVertices[i]);
+        v.Normal = mesh->HasNormals() ? aiVecToGlm(mesh->mNormals[i]) : glm::vec3(0);
+        v.TexCoords = mesh->HasTextureCoords(0) ? aiVec2ToGlm(mesh->mTextureCoords[0][i]) : glm::vec2(0);
     }
 
-    stringstream buffer;
-    buffer << file.rdbuf();
-    nlohmann::json data = nlohmann::json::parse(buffer.str());
+    return vertices;
+}
 
-    std::unordered_map<std::string, std::vector<Mesh>> boneMeshes;
-    std::vector<Mesh> unboundMeshes;
-    std::unordered_map<std::string, glm::vec3> origins;
+static std::vector<unsigned int> processIndices(aiMesh* mesh) {
+    std::vector<unsigned int> indices;
 
-    //we load the elements
-    for (auto &i: data["elements"]) {
-        map<Vertex, int> vertexMap;
-        vector<Vertex> vertices;
-        vector<unsigned int> indices;
-        int currentIndex = 0;
+    for (unsigned int i = 0; i < mesh->mNumFaces; ++i) {
+        aiFace face = mesh->mFaces[i];
+        for (unsigned int j = 0; j < face.mNumIndices; ++j)
+            indices.push_back(face.mIndices[j]);
+    }
 
-        //blockbench's units are *16 of ours
-        glm::vec3 origin(
-            static_cast<float>(i["origin"][0]) / 16.0f,
-            static_cast<float>(i["origin"][1]) / 16.0f,
-            static_cast<float>(i["origin"][2]) / 16.0f
-        );
+    return indices;
+}
 
-        auto vertexMapJson = i["vertices"];
+static void extractBoneData(aiMesh* mesh, std::unordered_map<std::string, std::vector<Mesh>>& boneMeshes, const Mesh& meshData) {
+    for (unsigned int i = 0; i < mesh->mNumBones; ++i) {
+        aiBone* bone = mesh->mBones[i];
+        boneMeshes[bone->mName.C_Str()].push_back(meshData);
+    }
+}
 
-        for (auto &[faceId, faceData]: i["faces"].items()) {
-            auto vnames = faceData["vertices"];
+static std::unordered_map<std::string, std::string> buildBoneHierarchy(const aiNode* node, const std::string& parent = "") {
+    std::unordered_map<std::string, std::string> result;
+    std::string nodeName = node->mName.C_Str();
 
-            glm::vec3 vpos[3];
-            for (int j = 0; j < 3; ++j) {
-                auto arr = vertexMapJson[vnames[j]];
-                //again, scale down
-                vpos[j] = glm::vec3(
-                              float(arr[0]) / 16.0f,
-                              float(arr[1]) / 16.0f,
-                              float(arr[2]) / 16.0f
-                          ) + origin;
-            }
+    for (unsigned int i = 0; i < node->mNumChildren; ++i) {
+        std::string childName = node->mChildren[i]->mName.C_Str();
+        result[childName] = nodeName;
 
-            glm::vec3 edge1 = vpos[1] - vpos[0];
-            glm::vec3 edge2 = vpos[2] - vpos[0];
-            glm::vec3 normal = glm::normalize(glm::cross(edge1, edge2));
+        auto childMap = buildBoneHierarchy(node->mChildren[i], nodeName);
+        result.insert(childMap.begin(), childMap.end());
+    }
 
-            std::map<std::string, glm::vec2> uvs;
-            for (auto &[vname, uvArr]: faceData["uv"].items()) {
-                int data1 = faceData["texture"];
+    return result;
+}
 
-                //we change uv scale based on texture size
-                uvs[vname] = glm::vec2(
-                    static_cast<float>(uvArr[0]) / static_cast<int>(data["textures"][data1]["uv_width"]),
-                    static_cast<float>(uvArr[1]) / static_cast<int>(data["textures"][data1]["uv_height"])
+void extractCollisionPartsFromCollection(
+    const aiScene* scene,
+    const aiNode* node,
+    const glm::mat4& parentTransform,
+    const std::string& collisionCollectionName,
+    std::vector<CollisionPart>& outCollisionParts
+) {
+    glm::mat4 nodeTransform = parentTransform * aiMatrix4x4ToGlm(node->mTransformation);
+
+    // Check if node belongs to the collision collection
+    // Assimp does NOT import Blender Collections as collections directly.
+    // But Blender exports collections as nodes named "CollectionName"
+    // So check if node's name matches your collision collection name
+    if (node->mName.C_Str() == collisionCollectionName) {
+        // This node is the collision collection root,
+        // so its children are collision shapes
+        for (unsigned int i = 0; i < node->mNumChildren; ++i) {
+            const aiNode* colNode = node->mChildren[i];
+
+            for (unsigned int meshIdx = 0; meshIdx < colNode->mNumMeshes; ++meshIdx) {
+                aiMesh* mesh = scene->mMeshes[colNode->mMeshes[meshIdx]];
+
+                // Compute bounding box for the mesh
+                aiVector3D bbMin = mesh->mVertices[0];
+                aiVector3D bbMax = mesh->mVertices[0];
+                for (unsigned int v = 1; v < mesh->mNumVertices; ++v) {
+                    bbMin.x = std::min(bbMin.x, mesh->mVertices[v].x);
+                    bbMin.y = std::min(bbMin.y, mesh->mVertices[v].y);
+                    bbMin.z = std::min(bbMin.z, mesh->mVertices[v].z);
+
+                    bbMax.x = std::max(bbMax.x, mesh->mVertices[v].x);
+                    bbMax.y = std::max(bbMax.y, mesh->mVertices[v].y);
+                    bbMax.z = std::max(bbMax.z, mesh->mVertices[v].z);
+                }
+
+                glm::vec3 min = glm::vec3(bbMin.x, bbMin.y, bbMin.z);
+                glm::vec3 max = glm::vec3(bbMax.x, bbMax.y, bbMax.z);
+                glm::vec3 size = max - min;
+
+                // Use node transform for position and scale
+                glm::vec3 position = glm::vec3(nodeTransform[3]); // Translation part of matrix
+                glm::vec3 scale = glm::vec3(
+                    glm::length(glm::vec3(nodeTransform[0])),
+                    glm::length(glm::vec3(nodeTransform[1])),
+                    glm::length(glm::vec3(nodeTransform[2]))
                 );
 
-                std::string key = "textures\\";
-                std::string path = data["textures"][data1]["path"];
-                std::string out = "error";
+                size *= scale;
 
-                size_t pos = path.rfind(key);
-                if (pos != std::string::npos) {
-                    out = path.substr(pos + key.length());
-
-                    const std::string extension = ".png";
-                    if (out.size() >= extension.size() &&
-                        out.compare(out.size() - extension.size(), extension.size(), extension) == 0) {
-                        out = out.substr(0, out.size() - extension.size());
-                    }
-                }
-                uvs[vname] = RenderUtil::getUV((out + ".png"), uvs[vname]);
-            }
-
-            //loop xyz
-            for (int j = 0; j < 3; ++j) {
-                Vertex v;
-                v.Position = vpos[j];
-                v.Normal = normal;
-                v.TexCoords = uvs.contains(vnames[j]) ? uvs[vnames[j]] : glm::vec2(0.0f);
-
-                if (!vertexMap.contains(v)) {
-                    vertexMap[v] = currentIndex++;
-                    vertices.push_back(v);
+                // Guess shape type based on name prefix of node (or mesh)
+                ShapeType shape = ShapeType::Rectangle; // default box
+                std::string nodeName = colNode->mName.C_Str();
+                if (nodeName.find("sphere") != std::string::npos) {
+                    shape = ShapeType::Sphere;
+                } else if (nodeName.find("cylinder") != std::string::npos) {
+                    shape = ShapeType::Cylinder;
                 }
 
-                indices.push_back(vertexMap[v]);
+                outCollisionParts.push_back({ shape, size, position });
             }
         }
-
-        string boneName = "";
-        for (const auto &item: data["outliner"]) {
-            if (item.is_object()) {
-                for (const auto &child: item["children"]) {
-                    if (child == i["uuid"]) {
-                        boneName = item["name"];
-                    }
-                }
-            }
-        }
-
-        Mesh mesh(vertices, indices);
-
-        if (!boneName.empty()) {
-            boneMeshes[boneName].push_back(mesh);
-            origins[boneName] = origin;
-        } else {
-            unboundMeshes.push_back(mesh);
+    } else {
+        // Recurse children
+        for (unsigned int i = 0; i < node->mNumChildren; ++i) {
+            extractCollisionPartsFromCollection(scene, node->mChildren[i], nodeTransform, collisionCollectionName, outCollisionParts);
         }
     }
+}
 
-    //animations!!!
-    std::unordered_map<std::string, std::string> boneParents;
-    vector<Animation> animations;
-    for (const auto &animData: data["animations"]) {
+glm::vec3 getFinalOffset(
+    const std::string& name,
+    const std::unordered_map<std::string, glm::vec3>& offsets,
+    const std::unordered_map<std::string, std::string>& parents)
+{
+    // Base offset for this object
+    glm::vec3 offset = glm::vec3(0.0f);
+
+    // Get own offset if present
+    auto it = offsets.find(name);
+    if (it != offsets.end()) {
+        offset = it->second;
+    }
+
+    // Find parent and if exists, add parent's final offset recursively
+    auto pIt = parents.find(name);
+    if (pIt != parents.end()) {
+        const std::string& parentName = pIt->second;
+        offset += getFinalOffset(parentName, offsets, parents);
+    }
+
+    return offset;
+}
+
+static std::vector<Animation> loadAnimations(const aiScene* scene) {
+    std::vector<Animation> animations;
+
+    for (unsigned int i = 0; i < scene->mNumAnimations; ++i) {
+        aiAnimation* a = scene->mAnimations[i];
+
         Animation anim;
-        anim.name = animData["name"];
-        anim.length = animData["length"];
-        std::string loopStr = animData["loop"];
+        anim.name = a->mName.C_Str();
+        anim.length = static_cast<float>(a->mDuration / a->mTicksPerSecond);
+        anim.loopMode = Loop;
 
-        if (loopStr == "loop") anim.loopMode = Loop;
-        else if (loopStr == "once") anim.loopMode = Once;
-        else {
-            cerr << "[WARN] Unknown loop type: " << loopStr << endl;
-            anim.loopMode = Once;
-        };
-
-        for (auto &[uuid, animatorData]: animData["animators"].items()) {
+        for (unsigned int j = 0; j < a->mNumChannels; ++j) {
+            aiNodeAnim* channel = a->mChannels[j];
             Animator animator;
-            animator.name = animatorData["name"];
+            animator.name = channel->mNodeName.C_Str();
 
-            anim.allowedBones.insert(animator.name);
+            for (unsigned int k = 0; k < channel->mNumPositionKeys; ++k) {
+                Keyframe key;
+                key.time = channel->mPositionKeys[k].mTime / a->mTicksPerSecond;
+                key.channel = Channel::Position;
+                key.interpolation = Linear;
+                key.value = aiVecToGlm(channel->mPositionKeys[k].mValue);
+                animator.keyframes.push_back(key);
+            }
 
-            for (const auto &kfData: animatorData["keyframes"]) {
-                Keyframe kf;
-                kf.time = kfData["time"];
+            for (unsigned int k = 0; k < channel->mNumRotationKeys; ++k) {
+                Keyframe key;
+                key.time = channel->mRotationKeys[k].mTime / a->mTicksPerSecond;
+                key.channel = Channel::Rotation;
+                key.interpolation = Linear;
+                glm::vec3 euler = glm::degrees(glm::eulerAngles(aiQuatToGlm(channel->mRotationKeys[k].mValue)));
+                key.value = euler;
+                animator.keyframes.push_back(key);
+            }
 
-                std::string chStr = kfData["channel"];
-                if (chStr == "position") kf.channel = Channel::Position;
-                else if (chStr == "rotation") kf.channel = Channel::Rotation;
-                else if (chStr == "scale") kf.channel = Channel::Scale;
-                else {
-                    cerr << "[WARN] Unknown animation channel: " << chStr << endl;
-                    continue;
-                };
-
-                kf.interpolation = Interpolation::Linear;
-                //TODO: Fix interpolation
-
-                auto dp = kfData["data_points"][0];
-                kf.value = {
-                    std::stof(static_cast<std::string>(dp["x"])),
-                    std::stof(static_cast<std::string>(dp["y"])),
-                    std::stof(static_cast<std::string>(dp["z"]))
-                };
-
-                if (kf.channel == Channel::Position) kf.value /= 16.0f;
-
-                animator.keyframes.push_back(kf);
+            for (unsigned int k = 0; k < channel->mNumScalingKeys; ++k) {
+                Keyframe key;
+                key.time = channel->mScalingKeys[k].mTime / a->mTicksPerSecond;
+                key.channel = Channel::Scale;
+                key.interpolation = Linear;
+                key.value = aiVecToGlm(channel->mScalingKeys[k].mValue);
+                animator.keyframes.push_back(key);
             }
 
             anim.animators.push_back(animator);
+            anim.allowedBones.insert(animator.name);
         }
 
         animations.push_back(anim);
     }
 
-    if (data.contains("outliner")) {
-        for (const auto &entry: data["outliner"]) {
-            if (entry.is_object()) {
-                std::string parentName = entry["name"];
-                if (entry.contains("children")) {
-                    for (const auto &child: entry["children"]) {
-                        if (child.is_object() && child.contains("name")) {
-                            boneParents[child["name"]] = parentName;
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    auto m = Model(boneMeshes, unboundMeshes, animations, boneParents, origins);;
-    models.insert({filePath, m});
-    saveCBModel(("output/compiled_models/" + filePath + ".cbmodel"), m);
-    return m;
+    return animations;
 }
 
-void ModelUtil::loadModels(bool forceRegen) {
-    //INSANE performance increase... 200,000 faces go from 20-30 secs loading to >2.5 secs (does not apply to startup/generation)
-    if (!forceRegen) {
-        std::filesystem::create_directories(std::filesystem::path("output/compiled_models/"));
-        for (auto &entry: std::filesystem::recursive_directory_iterator("output/compiled_models/")) {
-            if (entry.path().extension() == ".cbmodel") {
-                auto model = loadCBModel(entry.path().generic_string());
-                if (model.unboundMeshes.empty() && model.boneMeshes.empty()) {
-                    cerr << "Failed to load CB model: " << entry.path().generic_string() << endl;
-                } else {
-                    std::string key = "compiled_models/";
-                    std::string path = entry.path().generic_string();
-                    std::string out = "error";
+Model ModelUtil::loadModelFromFile(const std::string& path) {
+    Assimp::Importer importer;
+    const aiScene* scene = importer.ReadFile(("src/resources/models/" + path),
+        aiProcess_Triangulate |
+        aiProcess_FlipUVs |
+        aiProcess_CalcTangentSpace |
+        aiProcess_GenSmoothNormals |
+        aiProcess_OptimizeMeshes |
+        aiProcess_PreTransformVertices |
+        aiProcess_ValidateDataStructure |
+        aiProcess_RemoveRedundantMaterials |
+        aiProcess_OptimizeGraph |
+        aiProcess_GenBoundingBoxes
+        );
 
-                    size_t pos = path.rfind(key);
-                    if (pos != std::string::npos) {
-                        out = path.substr(pos + key.length());
+    cout << scene->mMeshes[0]->mAABB.mMax.x << endl;
 
-                        const std::string extension = ".cbmodel";
-                        if (out.size() >= extension.size() &&
-                            out.compare(out.size() - extension.size(), extension.size(), extension) == 0) {
-                            out = out.substr(0, out.size() - extension.size());
-                        }
-                    }
+    if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) {
+        std::cerr << "[ERROR] [ModelUtil] ASSIMP: " << importer.GetErrorString() << std::endl;
+        return {};
+    }
 
-                    if (!(model.unboundMeshes.empty() && model.boneMeshes.empty())) {
-                        models.insert({out, model});
-                        saveCBModel((entry.path().generic_string()), model);
-                    }
-                }
-            }
+    std::unordered_map<std::string, std::vector<Mesh>> boneMeshes;
+    std::vector<Mesh> unboundMeshes;
+    std::unordered_map<std::string, glm::vec3> origins;
+
+    for (unsigned int i = 0; i < scene->mNumMeshes; ++i) {
+        aiMesh* aiMesh = scene->mMeshes[i];
+        auto vertices = processVertices(aiMesh);
+        auto indices = processIndices(aiMesh);
+        Mesh mesh(vertices, indices);
+
+        cout << vertices.size() << " vertices, " << indices.size() << " indices" << endl;
+        for (unsigned int i = 0; i < std::min(aiMesh->mNumVertices, 5u); ++i) {
+            const aiVector3D& p = aiMesh->mVertices[i];
+            std::cout << "Vertex " << i << ": (" << p.x << ", " << p.y << ", " << p.z << ")\n";
+        }
+
+        // CollisionPart shape = fitPhysicsShapeForMesh(vertices);
+        //
+        // std::cout << "Mesh " << i << " best fit: ";
+        // switch (shape.shape) {
+        //     case ShapeType::Sphere:
+        //         std::cout << "Sphere with radius " << shape.size.x << "\n";
+        //         break;
+        //     case ShapeType::Rectangle:
+        //         std::cout << "Cube with size " << glm::to_string(shape.size) << "\n";
+        //         break;
+        //     case ShapeType::Cylinder:
+        //         std::cout << "Cylinder with radius " << shape.size.x << ", height " << shape.size.y << "\n";
+        //         break;
+        // }
+
+
+        if (aiMesh->HasBones()) {
+            extractBoneData(aiMesh, boneMeshes, mesh);
+            for (unsigned int b = 0; b < aiMesh->mNumBones; ++b)
+                origins[aiMesh->mBones[b]->mName.C_Str()] = glm::vec3(0); // optional: use offset matrix
+        } else {
+            unboundMeshes.push_back(mesh);
         }
     }
 
+    std::unordered_map<std::string, std::string> boneParents = buildBoneHierarchy(scene->mRootNode);
+    std::vector<Animation> animations = loadAnimations(scene);
+
+    std::vector<CollisionPart> collisionParts;
+    extractCollisionPartsFromCollection(scene, scene->mRootNode, glm::mat4(1.0f), "Collision", collisionParts);
+
+    return Model(boneMeshes, unboundMeshes, animations, boneParents, origins);
+}
+
+void ModelUtil::loadModels() {
     for (auto &entry: std::filesystem::recursive_directory_iterator("src/resources/models/")) {
-        if (entry.path().extension() == ".bbmodel") {
+        std::string extension = entry.path().extension().string();
+        if (extension == ".gltf" || extension == ".glb") {
             std::string path = entry.path().string();
             std::string key = "models/";
             std::string out = "error";
@@ -270,258 +327,21 @@ void ModelUtil::loadModels(bool forceRegen) {
             if (pos != std::string::npos) {
                 out = path.substr(pos + key.length());
 
-                const std::string extension = ".bbmodel";
                 if (out.size() >= extension.size() &&
                     out.compare(out.size() - extension.size(), extension.size(), extension) == 0) {
                     out = out.substr(0, out.size() - extension.size());
                 }
             }
-            if (!models.contains(out)) genModel(out);
+
+            models[out] = loadModelFromFile(out + extension);
         }
     }
 }
 
-Model ModelUtil::getModel(string name) {
-    if ((models[name].boneMeshes.empty() && models[name].unboundMeshes.empty()) && name != "unknown") {
-        cerr << "Unknown model: " << name << endl;
+Model* ModelUtil::getModel(const string &name) {
+    if ((models[name].boneMeshes.empty()) && name != "unknown") {
+        cerr << "[ERROR] [ModelUtil] Unknown model: " << name << endl;
         return getModel("unknown");
     }
-    return models[name];
-}
-
-void ModelUtil::saveCBModel(const std::string &filepath, const Model &model) {
-    std::filesystem::create_directories(std::filesystem::path(filepath).parent_path());
-
-    std::ofstream out(filepath, std::ios::binary);
-    if (!out.is_open()) {
-        std::cerr << "Failed to open file for writing: " << filepath << std::endl;
-        return;
-    }
-
-    uint32_t verifier = 0x43424D44; //this can be anything, it is CBMD in binary, it checks if the file type is correct
-    out.write(reinterpret_cast<char *>(&verifier), sizeof(verifier));
-
-    uint32_t unboundCount = model.unboundMeshes.size();
-    out.write(reinterpret_cast<char*>(&unboundCount), sizeof(unboundCount));
-    for (const Mesh& mesh : model.unboundMeshes) {
-        uint32_t vertexCount = mesh.vertices.size();
-        out.write(reinterpret_cast<char*>(&vertexCount), sizeof(vertexCount));
-        out.write(reinterpret_cast<const char*>(mesh.vertices.data()), vertexCount * sizeof(Vertex));
-
-        uint32_t indexCount = mesh.indices.size();
-        out.write(reinterpret_cast<char*>(&indexCount), sizeof(indexCount));
-        out.write(reinterpret_cast<const char*>(mesh.indices.data()), indexCount * sizeof(unsigned int));
-    }
-
-    uint32_t boneMeshGroupCount = model.boneMeshes.size();
-    out.write(reinterpret_cast<char*>(&boneMeshGroupCount), sizeof(boneMeshGroupCount));
-    for (const auto& [boneName, meshList] : model.boneMeshes) {
-        writeString(out, boneName);
-
-        uint32_t meshCount = meshList.size();
-        out.write(reinterpret_cast<char*>(&meshCount), sizeof(meshCount));
-        for (const Mesh& mesh : meshList) {
-            uint32_t vertexCount = mesh.vertices.size();
-            out.write(reinterpret_cast<char*>(&vertexCount), sizeof(vertexCount));
-            out.write(reinterpret_cast<const char*>(mesh.vertices.data()), vertexCount * sizeof(Vertex));
-
-            uint32_t indexCount = mesh.indices.size();
-            out.write(reinterpret_cast<char*>(&indexCount), sizeof(indexCount));
-            out.write(reinterpret_cast<const char*>(mesh.indices.data()), indexCount * sizeof(unsigned int));
-        }
-    }
-
-
-    uint32_t animCount = model.animations.size();
-    out.write(reinterpret_cast<char *>(&animCount), sizeof(animCount));
-
-    for (const Animation &anim: model.animations) {
-        writeString(out, anim.name);
-        out.write(reinterpret_cast<const char *>(&anim.length), sizeof(anim.length));
-        out.write(reinterpret_cast<const char *>(&anim.loopMode), sizeof(uint8_t));
-
-        uint32_t animatorCount = anim.animators.size();
-        out.write(reinterpret_cast<char *>(&animatorCount), sizeof(animatorCount));
-
-        for (const Animator &animator: anim.animators) {
-            writeString(out, animator.name);
-
-            uint32_t keyframeCount = animator.keyframes.size();
-            out.write(reinterpret_cast<char *>(&keyframeCount), sizeof(keyframeCount));
-
-            for (const Keyframe &kf: animator.keyframes) {
-                out.write(reinterpret_cast<const char *>(&kf.time), sizeof(kf.time));
-
-                uint8_t ch = static_cast<uint8_t>(kf.channel);
-                uint8_t interp = static_cast<uint8_t>(kf.interpolation);
-                out.write(reinterpret_cast<char *>(&ch), sizeof(ch));
-                out.write(reinterpret_cast<char *>(&interp), sizeof(interp));
-
-                out.write(reinterpret_cast<const char *>(&kf.value), sizeof(Vec3));
-            }
-
-            uint32_t allowedBoneCount = anim.allowedBones.size();
-            out.write(reinterpret_cast<const char *>(&allowedBoneCount), sizeof(allowedBoneCount));
-            for (const auto &bone: anim.allowedBones) {
-                writeString(out, bone);
-            }
-        }
-    }
-
-    uint32_t boneParentCount = model.boneParents.size();
-    out.write(reinterpret_cast<const char *>(&boneParentCount), sizeof(boneParentCount));
-    for (const auto &[child, parent]: model.boneParents) {
-        writeString(out, child);
-        writeString(out, parent);
-    }
-
-    uint32_t originCount = model.origins.size();
-    out.write(reinterpret_cast<const char*>(&originCount), sizeof(originCount));
-
-    for (const auto& [boneName, origin] : model.origins) {
-        writeString(out, boneName);
-        out.write(reinterpret_cast<const char*>(&origin), sizeof(glm::vec3));
-    }
-
-    out.close();
-}
-
-Model ModelUtil::loadCBModel(const std::string &filepath) {
-    try {
-        std::ifstream in(filepath, std::ios::binary);
-        if (!in.is_open()) {
-            std::cerr << "Failed to open file for reading: " << filepath << std::endl;
-            return invalidModel;
-        }
-
-        uint32_t verifier;
-        //we check if it has the verifier text
-        in.read(reinterpret_cast<char *>(&verifier), sizeof(verifier));
-        if (verifier != 0x43424D44) {
-            std::cerr << "Invalid .cbmodel file format." << std::endl;
-            return invalidModel;
-        }
-
-        std::vector<Mesh> unboundMeshes;
-        std::unordered_map<std::string, std::vector<Mesh>> boneMeshes;
-
-        uint32_t unboundCount;
-        in.read(reinterpret_cast<char*>(&unboundCount), sizeof(unboundCount));
-        for (uint32_t i = 0; i < unboundCount; ++i) {
-            uint32_t vertexCount;
-            in.read(reinterpret_cast<char*>(&vertexCount), sizeof(vertexCount));
-            std::vector<Vertex> vertices(vertexCount);
-            in.read(reinterpret_cast<char*>(vertices.data()), vertexCount * sizeof(Vertex));
-
-            uint32_t indexCount;
-            in.read(reinterpret_cast<char*>(&indexCount), sizeof(indexCount));
-            std::vector<unsigned int> indices(indexCount);
-            in.read(reinterpret_cast<char*>(indices.data()), indexCount * sizeof(unsigned int));
-
-            unboundMeshes.emplace_back(vertices, indices);
-        }
-
-        // Load bone-attached meshes
-        uint32_t boneMeshGroupCount;
-        in.read(reinterpret_cast<char*>(&boneMeshGroupCount), sizeof(boneMeshGroupCount));
-        for (uint32_t i = 0; i < boneMeshGroupCount; ++i) {
-            std::string boneName = readString(in);
-
-            uint32_t meshCount;
-            in.read(reinterpret_cast<char*>(&meshCount), sizeof(meshCount));
-
-            for (uint32_t j = 0; j < meshCount; ++j) {
-                uint32_t vertexCount;
-                in.read(reinterpret_cast<char*>(&vertexCount), sizeof(vertexCount));
-                std::vector<Vertex> vertices(vertexCount);
-                in.read(reinterpret_cast<char*>(vertices.data()), vertexCount * sizeof(Vertex));
-
-                uint32_t indexCount;
-                in.read(reinterpret_cast<char*>(&indexCount), sizeof(indexCount));
-                std::vector<unsigned int> indices(indexCount);
-                in.read(reinterpret_cast<char*>(indices.data()), indexCount * sizeof(unsigned int));
-
-                boneMeshes[boneName].emplace_back(vertices, indices);
-            }
-        }
-
-        vector<Animation> animations;
-
-        uint32_t animCount = 0;
-        if (!in.eof()) {
-            // check if theres animation data
-            in.read(reinterpret_cast<char *>(&animCount), sizeof(animCount));
-        }
-
-        for (uint32_t i = 0; i < animCount; ++i) {
-            Animation anim;
-            anim.name = readString(in);
-            in.read(reinterpret_cast<char *>(&anim.length), sizeof(anim.length));
-            in.read(reinterpret_cast<char *>(&anim.loopMode), sizeof(uint8_t));
-
-            uint32_t animatorCount;
-            in.read(reinterpret_cast<char *>(&animatorCount), sizeof(animatorCount));
-            anim.animators.resize(animatorCount);
-
-            for (Animator &animator: anim.animators) {
-                animator.name = readString(in);
-
-                uint32_t keyframeCount;
-                in.read(reinterpret_cast<char *>(&keyframeCount), sizeof(keyframeCount));
-                animator.keyframes.resize(keyframeCount);
-
-                for (Keyframe &kf: animator.keyframes) {
-                    in.read(reinterpret_cast<char *>(&kf.time), sizeof(kf.time));
-
-                    uint8_t ch, interp;
-                    in.read(reinterpret_cast<char *>(&ch), sizeof(ch));
-                    in.read(reinterpret_cast<char *>(&interp), sizeof(interp));
-
-                    kf.channel = static_cast<Channel>(ch);
-                    kf.interpolation = static_cast<Interpolation>(interp);
-
-                    in.read(reinterpret_cast<char *>(&kf.value), sizeof(Vec3));
-                }
-
-                uint32_t allowedBoneCount;
-                in.read(reinterpret_cast<char *>(&allowedBoneCount), sizeof(allowedBoneCount));
-                for (uint32_t i = 0; i < allowedBoneCount; ++i) {
-                    anim.allowedBones.insert(readString(in));
-                }
-            }
-
-            animations.push_back(anim);
-        }
-
-        uint32_t boneParentCount = 0;
-        if (!in.eof()) {
-            // check if theres bone parent data so no animations work
-            in.read(reinterpret_cast<char *>(&boneParentCount), sizeof(boneParentCount));
-        }
-        std::unordered_map<std::string, std::string> boneParents;
-        for (uint32_t i = 0; i < boneParentCount; ++i) {
-            std::string child = readString(in);
-            std::string parent = readString(in);
-            boneParents[child] = parent;
-        }
-
-        uint32_t originCount = 0;
-        if (!in.eof()) {
-            in.read(reinterpret_cast<char*>(&originCount), sizeof(originCount));
-        }
-
-        std::unordered_map<std::string, glm::vec3> origins;
-        for (uint32_t i = 0; i < originCount; ++i) {
-            std::string boneName = readString(in);
-            glm::vec3 origin;
-            in.read(reinterpret_cast<char*>(&origin), sizeof(glm::vec3));
-            origins[boneName] = origin;
-        }
-
-        in.close();
-        return Model(boneMeshes, unboundMeshes, animations, boneParents, origins);
-    } catch (const std::exception &e) {
-        std::cerr << "Failed to read CBModel " << filepath << ": " << e.what() << std::endl;
-    };
-    return Model();
+    return &models[name];
 }

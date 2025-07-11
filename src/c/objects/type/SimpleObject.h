@@ -3,7 +3,7 @@
 //
 #pragma once
 
-#include "src/c/objects/LivingObject.h"
+#include "../LivingObject.h"
 
 class SimpleObject : public LivingObject {
 public:

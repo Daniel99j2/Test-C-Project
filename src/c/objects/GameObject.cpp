@@ -1,14 +1,10 @@
 #include "GameObject.h"
-#include "src/c/util/GameConstants.h"
-#include "src/c/util/ModelUtil.h"
-
-#define GLM_ENABLE_EXPERIMENTAL
-#include <../../../libs/glm/gtx/string_cast.hpp>
+#include "../util/GameConstants.h"
+#include "../util/ModelUtil.h"
+#include "../PreImports.h"
 
 GameObject::GameObject(const glm::vec3 vec)
-    : shape(ShapeType::Rectangle),
-      position(vec),
-      size(glm::vec3(0.3f)),
+    : position(vec),
       mass(1.0f),
       gravity(0.98),
       model(ModelUtil::getModel("unknown")),
@@ -33,7 +29,7 @@ void GameObject::update(float dt) {
 void GameObject::draw(float deltaTime) {
     shader.use();
     animator.tick(deltaTime);
-    model.draw(shader, this->transform, animator);
+    model->draw(shader, this->transform, animator);
 }
 
 void GameObject::baseTick() {

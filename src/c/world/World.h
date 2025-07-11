@@ -3,7 +3,7 @@
 #include <vector>
 #include <unordered_map>
 
-#include "src/c/objects/GameObject.h"
+#include "../objects/GameObject.h"
 
 class World {
 public:

@@ -3,15 +3,21 @@
 #include <vector>
 #include <memory>
 
-#include "libs/glm/glm.hpp"
-#include "src/c/util/AnimatorInstance.h"
-#include "src/c/util/Model.h"
-#include "src/c/util/Shader.h"
+#include "../util/AnimatorInstance.h"
+#include "../util/Model.h"
+#include "../util/Shader.h"
 
 enum class ShapeType {
     Rectangle,
     Sphere,
     Cylinder
+};
+
+class CollisionPart {
+public:
+    ShapeType shape;
+    glm::vec3 position;
+    glm::vec3 size;
 };
 
 struct Collision {
@@ -21,19 +27,19 @@ struct Collision {
 
 class GameObject {
 public:
-    ShapeType shape;
     glm::vec3 position;
-    glm::vec3 size;
     glm::vec3 velocity = glm::vec3(0);
     float mass;
     float gravity;
     bool isStatic = false;
+    bool pushable = false;
     std::vector<Collision> collisions;
+    std::vector<CollisionPart>* collisionParts;
 
     void applySlowdown(float drag);
     void update(float dt);
 
-    Model model;
+    Model* model;
     Shader shader;
     AnimatorInstance animator = AnimatorInstance();
     std::string type;

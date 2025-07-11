@@ -1,25 +1,11 @@
+#include "../PreImports.h"
 #include "RenderUtil.h"
 
-#include <iostream>
-#include <random>
-#include "../../../libs/glew/include/GL/glew.h"
-#include <GLFW/glfw3.h>
-#include <fstream>
-#include <sstream>
-#include "../../../libs/glm/vec3.hpp"
-#include "../../../libs/glm/vec4.hpp"
-#include "../../../libs/glm/ext/matrix_transform.hpp"
-#include "../../../libs/glm/ext/matrix_clip_space.hpp"
 #define STB_IMAGE_IMPLEMENTATION
-#include "../../../libs/stb_image.h"
-#include "libs/json.hpp"
-#include <filesystem>
+#include <stb_image.h>
+
 #define STB_IMAGE_WRITE_IMPLEMENTATION
-#include <../../../libs/stb_image_write.h>
-#define STB_RECT_PACK_IMPLEMENTATION
-#include "../../../libs/packer/rectpack2D/best_bin_finder.h"
-#include "../../../libs/packer/rectpack2D/finders_interface.h"
-#include "../../../libs/packer/rectpack2D/rect_structs.h"
+#include <stb_image_write.h>
 
 using namespace std;
 using namespace rectpack2D;
@@ -37,7 +23,7 @@ bool isInvalidUV(glm::vec2 uv) {
 string RenderUtil::loadShaderSource(const char *filePath) {
     ifstream file(filePath);
     if (!file.is_open()) {
-        cerr << "Failed to open shader file: " << filePath << endl;
+        cerr << "[ERROR] [Shader] Failed to open shader file: " << filePath << endl;
         return "";
     }
 
@@ -59,7 +45,7 @@ GLuint RenderUtil::loadShader(const char *filePath, GLenum type) {
     if (!success) {
         char log[512];
         glGetShaderInfoLog(shader, 512, nullptr, log);
-        cerr << "Shader compile error:" << endl << log << endl;
+        cerr << "[ERROR] [Shader] Shader compile error:" << endl << log << endl;
     }
 
     return shader;
@@ -107,7 +93,7 @@ GLuint RenderUtil::genTexture(string path) {
 
         stbi_image_free(data);
     } else {
-        std::cerr << "[WARN] Texture failed to load at path: " << path << std::endl;
+        std::cerr << "[WARN] [Texture] Texture failed to load at path: " << path << std::endl;
         stbi_image_free(data);
     }
     return textureID;

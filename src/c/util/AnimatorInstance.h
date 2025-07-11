@@ -10,7 +10,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#include "libs/glm/fwd.hpp"
+#include <glm/fwd.hpp>
 
 class AnimatorInstance {
 public:

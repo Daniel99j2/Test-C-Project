@@ -1,32 +1,9 @@
-#define GLM_ENABLE_EXPERIMENTAL
-#include <iostream>
-#include <chrono>
-#include <random>
-#include "../../libs/glew/include/GL/glew.h"
-#include <GLFW/glfw3.h>
-#include <fstream>
+#include "PreImports.h"
 #include "util/RenderUtil.h"
-#include <windows.h>
-#include "../../../libs/glm/vec3.hpp"
-#include "../../../libs/glm/mat4x4.hpp"
-#include "../../../libs/glm/ext/matrix_transform.hpp"
-#include "../../../libs/glm/ext/matrix_clip_space.hpp"
-#include "../../../libs/glm/glm.hpp"
-#include "../../../libs/glm/gtc/type_ptr.hpp"
 #include "util/GenericUtil.h"
-#include <string>
-#include <thread>
-
-#include "../../../libs/json.hpp"
-#include "../../../libs/imgui/imgui.h"
-#include "../../../libs/imgui/imgui.h"
-#include "../../../libs/imgui/backends/imgui_impl_glfw.h"
-#include "../../libs/imgui/backends/imgui_impl_opengl3.h"
-#include "libs/stb_image.h"
 #include "util/Logger.h"
 #include "util/GameConstants.h"
 #include "util/Model.h"
-
 #include "util/ModelUtil.h"
 #include "util/Shader.h"
 #include "objects/GameObject.h"
@@ -36,6 +13,9 @@
 #include "util/Keybinds.h"
 #include "util/Profiler.h"
 #include "world/World.h"
+
+#include <stb_image.h>
+
 //the bin folder contents needs to be copied!
 
 using namespace std;
@@ -46,7 +26,7 @@ void mouse_callback(GLFWwindow *window, double xpos, double ypos);
 
 int stride = 8;
 std::map<std::string, std::string> args;
-chrono::system_clock::time_point lastFrameTime;
+std::chrono::high_resolution_clock::time_point lastFrameTime;
 
 struct Light {
     glm::vec3 position;
@@ -64,7 +44,7 @@ std::map<std::string, bool> debugCheckboxes;
 
 int main(int argc, char *argv[]) {
     Logger logger;
-    cout << "[INFO] Game loading..." << endl;
+    cout << "[INFO] [Main] Game loading..." << endl;
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -94,7 +74,7 @@ int main(int argc, char *argv[]) {
     GLFWwindow *window = glfwCreateWindow(GameConstants::window_width, GameConstants::window_height, "Baseplate Test", NULL, NULL);
     GameConstants::window = window;
     if (!window) {
-        std::cerr << "[ERROR] Couldn't create the window!" << std::endl;
+        std::cerr << "[ERROR] [Main] Couldn't create the window!" << std::endl;
         glfwTerminate();
         return -1;
     }
@@ -105,7 +85,7 @@ int main(int argc, char *argv[]) {
     glEnable(GL_DEPTH_TEST);
 
     if (const GLenum err = glewInit(); err != GLEW_OK) {
-        std::cerr << "[ERROR] GLEW init failed: " << glewGetErrorString(err) << std::endl;
+        std::cerr << "[ERROR] [Main] GLEW init failed: " << glewGetErrorString(err) << std::endl;
         return -1;
     }
 
@@ -207,7 +187,6 @@ int main(int argc, char *argv[]) {
     GameConstants::defaultShader = Shader("default");
     GameConstants::skyboxShader = Shader("skybox");
     GameConstants::lightEmitterShader = Shader("lighting");
-    Shader pointShadowShader("point_shadow");
 
     GameConstants::defaultShader.use();
 
@@ -216,14 +195,14 @@ int main(int argc, char *argv[]) {
                                "output/atlases/atlas_mer.json",
                                args.contains("regenAtlas") || args.contains("regenAll"));
 
-    ModelUtil::loadModels(args.contains("regenAtlas") || args.contains("regenModels") || args.contains("regenAll"));
+    ModelUtil::loadModels();
 
-    Model skybox = ModelUtil::getModel("skybox");
+    //Model* skybox = ModelUtil::getModel("skybox");
 
     glm::vec3 lightPos(1.5f, 1.0f, -2.3f);
 
-    cout << "[INFO] Game loaded!" << endl;
-    cout << "[INFO] Game took " << glfwGetTime() - startTime << " seconds to start!" << endl;
+    cout << "[INFO] [Game] Game loaded!" << endl;
+    cout << "[INFO] [Game] Game took " << glfwGetTime() - startTime << " seconds to start!" << endl;
 
     GameConstants::world = World();
     GameConstants::player = std::make_shared<Player>(glm::vec3(5, 10, 0));;
@@ -234,8 +213,13 @@ int main(int argc, char *argv[]) {
     GameConstants::world.addObject(std::static_pointer_cast<GameObject>(g));
     g->gravity = 0;
 
-    g->animator.play(&g->model.animations[0]);
-    g->animator.play(&g->model.animations[1]);
+    auto g1 = std::make_shared<SimpleObject>(glm::vec3(10, 2, 0));
+    GameConstants::world.addObject(std::static_pointer_cast<GameObject>(g1));
+    g1->gravity = 0;
+    g1->model = ModelUtil::getModel("blender");
+
+    //g->animator.play(&g->model.animations[0]);
+    //g->animator.play(&g->model.animations[1]);
 
     glDepthMask(GL_TRUE);
     glEnable(GL_CULL_FACE);
@@ -247,20 +231,22 @@ int main(int argc, char *argv[]) {
     //gamma correction
     glEnable(GL_FRAMEBUFFER_SRGB);
 
-    glfwSwapInterval(0);
+    glfwSwapInterval(1);
 
-    for (int i = 0; i < 5; ++i) {
-        cerr << (i + "[ERROR] Test Error") << endl;
-        cerr << "[WARN] Test Error" << endl;
-        cout << "[INFO] Working!" << endl;
-    }
+    const GLubyte* renderer = glGetString(GL_RENDERER);
+    const GLubyte* vendor   = glGetString(GL_VENDOR);
+    printf("Renderer: %s\nVendor: %s\n", renderer, vendor);
 
     while (!glfwWindowShouldClose(window)) {
-        auto now = std::chrono::high_resolution_clock::now();
+        std::chrono::high_resolution_clock::time_point now = std::chrono::high_resolution_clock::now();
         float deltaTime = std::chrono::duration<float>(now - lastFrameTime).count();
         lastFrameTime = now;
 
         auto oldProfilerResults = Profiler::getResults();
+
+        Profiler::fpsHistory[Profiler::fpsIndex % 100] = 1.0f / std::max(deltaTime, 0.0001f);
+        Profiler::fpsIndex++;
+
         Profiler::beginFrame();
 
         Profiler::beginSection("ImGui");
@@ -287,6 +273,8 @@ int main(int argc, char *argv[]) {
         ImGui::End();
 
         ImGui::Begin("Profiler");
+        ImGui::PlotLines("FPS", Profiler::fpsHistory, 100, 0, nullptr, 0.0f, 120, ImVec2(0, 80));
+
         for (const auto& [name, res] : oldProfilerResults) {
             ImGui::Text("%s: %.3f s (%.3f ms avg, %d calls)", name.c_str(),
                         res.totalTime / 1000.0f,
@@ -344,6 +332,8 @@ int main(int argc, char *argv[]) {
 
         glEnable(GL_DEPTH_TEST);
 
+        Profiler::beginSection("Main");
+
         Profiler::beginSection("Lighting");
         GameConstants::defaultShader.use();
         GameConstants::defaultShader.setVec3("viewPos", GameConstants::keybindsManager.TOGGLE_CAMERA->isPressd()
@@ -395,23 +385,23 @@ int main(int argc, char *argv[]) {
 
         glDrawArrays(GL_TRIANGLES, 0, 36);
 
-        glDepthFunc(GL_LEQUAL);
-        glDepthMask(GL_FALSE);
-
-        GameConstants::skyboxShader.use();
-
-        float time = (float) glfwGetTime() * 0.5f - 0.0f;
-        GameConstants::skyboxShader.setFloat("time", time);
-
-        GameConstants::skyboxShader.setMat4("view", view);
-        GameConstants::skyboxShader.setMat4("projection", projection);
-
-        GameConstants::skyboxShader.setFloat("cirrus", 0.4f);
-        GameConstants::skyboxShader.setFloat("cumulus", 0.6f);
-
-        skybox.drawBasic(GameConstants::skyboxShader);
-        glDepthMask(GL_TRUE);
-        glDepthFunc(GL_LESS);
+        // glDepthFunc(GL_LEQUAL);
+        // glDepthMask(GL_FALSE);
+        //
+        // GameConstants::skyboxShader.use();
+        //
+        // float time = (float) glfwGetTime() * 0.5f - 0.0f;
+        // GameConstants::skyboxShader.setFloat("time", time);
+        //
+        // GameConstants::skyboxShader.setMat4("view", view);
+        // GameConstants::skyboxShader.setMat4("projection", projection);
+        //
+        // GameConstants::skyboxShader.setFloat("cirrus", 0.4f);
+        // GameConstants::skyboxShader.setFloat("cumulus", 0.6f);
+        //
+        // skybox->drawBasic(GameConstants::skyboxShader);
+        // glDepthMask(GL_TRUE);
+        // glDepthFunc(GL_LESS);
 
         //disables gamma correction, so colours aren't washed out
         if (GameConstants::debugging) {
@@ -419,12 +409,17 @@ int main(int argc, char *argv[]) {
             ImGui::Render();
             ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
             glEnable(GL_FRAMEBUFFER_SRGB);
-        } else {
-            ImGui::EndFrame();
         }
 
+
+        Profiler::endSection("Main");
+
+        ImGui::EndFrame();
+
+        Profiler::beginSection("GLFW Render");
         glfwSwapBuffers(window);
         glfwPollEvents();
+        Profiler::endSection("GLFW Render");
 
         string title = ("Baseplate test game - Pos: " + to_string(GameConstants::player->position.x) + " " +
                         to_string(GameConstants::player->position.y) + " " +
@@ -432,12 +427,19 @@ int main(int argc, char *argv[]) {
                         to_string(GameConstants::player->pitch) + " Yaw: " + to_string(GameConstants::player->yaw));
         glfwSetWindowTitle(window, title.c_str());
 
-        Profiler::endFrame();
+        //here
 
+        Profiler::beginSection("Sleep");
         float targetFrameTime = 1.0f / GameConstants::targetFPS;
-        if (deltaTime < targetFrameTime) {
-            std::this_thread::sleep_for(std::chrono::duration<float>(targetFrameTime - deltaTime));
+        auto sleepDuration = targetFrameTime - deltaTime;
+        if (sleepDuration > 0.002f) {
+            std::this_thread::sleep_for(std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::duration<float>(sleepDuration)
+            ));
         }
+        Profiler::endSection("Sleep");
+
+        Profiler::endFrame();
     }
 
     ImGui_ImplOpenGL3_Shutdown();

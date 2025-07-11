@@ -4,7 +4,7 @@
 #pragma once
 #include <unordered_set>
 #include <vector>
-#include "libs/glm/glm.hpp"
+#include <glm/glm.hpp>
 
 enum Channel { Position, Rotation, Scale };
 enum Interpolation { Linear, Smooth };

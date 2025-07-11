@@ -3,7 +3,7 @@
 //
 
 #include "SimpleObject.h"
-#include "src/c/util/ModelUtil.h"
+#include "../../util/ModelUtil.h"
 
 SimpleObject::SimpleObject(const glm::vec3& vec)
     : LivingObject(vec) {

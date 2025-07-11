@@ -6,11 +6,7 @@
 #include <chrono>
 #include <unordered_map>
 
-#include "../../../libs/glew/include/GL/glew.h"
 #include <GLFW/glfw3.h>
-#include "../../../libs/glm/mat4x4.hpp"
-#include "../../../libs/glm/ext/matrix_transform.hpp"
-#include "../../../libs/glm/ext/matrix_clip_space.hpp"
 
 class RenderUtil {
 public:

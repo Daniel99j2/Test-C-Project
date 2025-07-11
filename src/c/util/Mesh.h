@@ -1,9 +1,9 @@
 #pragma once
 #include "Shader.h"
-#include "../../../libs/glm/vec3.hpp"
-#include "../../../libs/glm/vec2.hpp"
+#include <glm/vec3.hpp>
+#include <glm/vec2.hpp>
 
-#include "libs/glew/include/GL/glew.h"
+#include <GL/glew.h>
 
 class GameConstants;
 class ModelUtil;
@@ -41,7 +41,7 @@ public:
         setupMesh();
     }
 
-    void draw(Shader &shader, const glm::mat4 &transform) const {
+    void draw(const Shader &shader, const glm::mat4 &transform) const {
         shader.setMat4("model", transform);
         glBindVertexArray(VAO);
         glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, nullptr);
