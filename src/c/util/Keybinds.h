@@ -5,13 +5,13 @@
 #pragma once
 
 #include "GameConstants.h"
-#include "Keybind.h"
+#include "../misc/Keybind.h"
 #include "GenericUtil.h"
 #include "../objects/type/Player.h"
 
 class Keybinds {
 public:
-    std::vector<std::shared_ptr<Keybind> > keybinds;
+    std::vector<std::shared_ptr<Keybind>> keybinds;
 
     template<typename Pressed, typename Whilst, typename Released>
     std::shared_ptr<Keybind> make_keybind(int key, Keybind::Mode mode, std::string name, Pressed p, Whilst w,

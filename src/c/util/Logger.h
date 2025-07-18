@@ -166,8 +166,8 @@ private:
         originalCerrBuf = std::cerr.rdbuf();
         coutBuf = std::make_unique<RedirectBuf>(*this, originalCoutBuf, false);
         cerrBuf = std::make_unique<RedirectBuf>(*this, originalCerrBuf, true);
-        std::cout.rdbuf(coutBuf.get());
-        std::cerr.rdbuf(cerrBuf.get());
+        // std::cout.rdbuf(coutBuf.get());
+        // std::cerr.rdbuf(cerrBuf.get());
     }
 
     void restoreStreams() {

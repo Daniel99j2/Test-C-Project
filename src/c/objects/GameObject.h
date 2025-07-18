@@ -3,9 +3,9 @@
 #include <vector>
 #include <memory>
 
-#include "../util/AnimatorInstance.h"
-#include "../util/Model.h"
-#include "../util/Shader.h"
+#include "../util/model/AnimatorInstance.h"
+#include "../util/model/Model.h"
+#include "../util/model/Shader.h"
 
 enum class ShapeType {
     Rectangle,
@@ -15,9 +15,10 @@ enum class ShapeType {
 
 class CollisionPart {
 public:
-    ShapeType shape;
-    glm::vec3 position;
-    glm::vec3 size;
+    glm::vec3 start;
+    glm::vec3 end;
+
+    CollisionPart() = default;
 };
 
 struct Collision {
@@ -33,12 +34,6 @@ public:
     float gravity;
     bool isStatic = false;
     bool pushable = false;
-    std::vector<Collision> collisions;
-    std::vector<CollisionPart>* collisionParts;
-
-    void applySlowdown(float drag);
-    void update(float dt);
-
     Model* model;
     Shader shader;
     AnimatorInstance animator = AnimatorInstance();
@@ -47,6 +42,14 @@ public:
     float yaw = 0;
     glm::mat4 transform = glm::mat4(1.0f);
     int id = -1;
+    std::vector<Collision> collisions;
+//MUST be after model, else errors occur
+    std::vector<CollisionPart>* collisionParts;
+
+    void applySlowdown(float drag);
+    void update(float dt);
+
+    static void renderBoundingBox();
 
     void draw(float deltaTime);
     void baseTick();

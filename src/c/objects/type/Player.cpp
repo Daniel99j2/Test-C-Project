@@ -4,14 +4,14 @@
 
 #include "Player.h"
 
-#include "../../util/ModelUtil.h"
+#include "../../util/model/ModelUtil.h"
 
 Player::Player(const glm::vec3& vec)
     : LivingObject(vec) {
     maxHealth = 100;
     health = 100;
     damage = 10;
-    speed = 1;
+    speed = 0.2;
     type = "player";
     model = ModelUtil::getModel("player");
 }
@@ -21,7 +21,7 @@ void Player::tick() {
 }
 
 void Player::move(bool w, bool a, bool s, bool d) {
-    float max_speed = 10;
+    float max_speed = 1;
     glm::vec3 front;
     front.x = cos(glm::radians(pitch)) * sin(glm::radians(yaw));
     front.y = sin(glm::radians(pitch));

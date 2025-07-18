@@ -3,6 +3,7 @@ set(USERPROFILE_DIR $ENV{USERPROFILE})
 set(CMAKE_TOOLCHAIN_FILE "${USERPROFILE_DIR}/vcpkg/scripts/buildsystems/vcpkg.cmake" CACHE STRING "Vcpkg toolchain file")
 set(VCPKG_TARGET_TRIPLET "x64-windows-static" CACHE STRING "")
 set(CMAKE_CXX_FLAGS_RELEASE "/O2 /Ob2 /DNDEBUG")
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 project(Main)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -11,7 +12,7 @@ add_subdirectory(libs/packer)
 
 find_package(OpenGL REQUIRED)
 find_package(assimp REQUIRED)
-find_package(glm REQUIRED)
+find_package(glm CONFIG REQUIRED)
 find_package(GLEW REQUIRED)
 find_package(glfw3 REQUIRED)
 
@@ -20,14 +21,14 @@ add_executable(
         src/c/main.cpp
         src/c/PreImports.cpp
         src/c/PreImports.h
-        src/c/util/RenderUtil.cpp
-        src/c/util/RenderUtil.h
+        src/c/util/model/RenderUtil.cpp
+        src/c/util/model/RenderUtil.h
         src/c/util/GenericUtil.cpp
         src/c/util/GenericUtil.h
         libs/json.hpp
-        src/c/util/ModelUtil.cpp
-        src/c/util/ModelUtil.h
-        src/c/util/Mesh.h
+        src/c/util/model/ModelUtil.cpp
+        src/c/util/model/ModelUtil.h
+        src/c/util/model/Mesh.h
         src/c/objects/GameObject.cpp
         src/c/objects/GameObject.h
         src/c/objects/LivingObject.cpp
@@ -40,12 +41,12 @@ add_executable(
         src/c/util/GameConstants.cpp
         src/c/objects/type/SimpleObject.cpp
         src/c/objects/type/SimpleObject.h
-        src/c/util/Animation.h
-        src/c/util/AnimatorInstance.cpp
-        src/c/util/AnimatorInstance.h
-        src/c/util/Keybind.h
+        src/c/util/model/Animation.h
+        src/c/util/model/AnimatorInstance.cpp
+        src/c/util/model/AnimatorInstance.h
+        src/c/misc/Keybind.h
         src/c/util/Keybinds.h
-        src/c/util/Keybind.cpp
+        src/c/misc/Keybind.cpp
         libs/imgui/backends/imgui_impl_glfw.cpp
         libs/imgui/backends/imgui_impl_opengl3.cpp
         libs/imgui/imgui.cpp
@@ -58,6 +59,8 @@ add_executable(
         src/c/util/Profiler.h
         src/c/util/Logger.h
         src/c/util/Profiler.cpp
+        src/c/util/model/Material.h
+        src/c/ui/WorldEditorGui.h
 )
 
 include_directories(

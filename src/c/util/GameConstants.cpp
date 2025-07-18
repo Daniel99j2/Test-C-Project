@@ -11,6 +11,9 @@
 bool GameConstants::wireframe = false;
 bool GameConstants::debug = false;
 bool GameConstants::debugging = false;
+int GameConstants::debugRenderMode = 0;
+bool GameConstants::debugCollision = false;
+bool GameConstants::postProcessingEnabled = true;
 int GameConstants::targetFPS = 60;
 int GameConstants::window_height = 720;
 int GameConstants::window_width = 1280;
@@ -20,6 +23,7 @@ bool GameConstants::fullscreen = false;
 Shader GameConstants::defaultShader;
 Shader GameConstants::skyboxShader;
 Shader GameConstants::lightEmitterShader;
+Shader GameConstants::postProcessor;
 
 std::shared_ptr<Player> GameConstants::player;
 World GameConstants::world;

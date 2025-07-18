@@ -17,6 +17,9 @@ public:
     static bool wireframe;
     static bool debug;
     static bool debugging;
+    static int debugRenderMode;
+    static bool debugCollision;
+    static bool postProcessingEnabled;
     static int targetFPS;
     static int window_width;
     static int window_height;
@@ -25,6 +28,7 @@ public:
     static Shader defaultShader;
     static Shader skyboxShader;
     static Shader lightEmitterShader;
+    static Shader postProcessor;
 
     static std::shared_ptr<Player> player;
     static World world;
