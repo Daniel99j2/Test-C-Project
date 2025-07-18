@@ -122,16 +122,12 @@ GLuint RenderUtil::genTexture(string path) {
 GLuint RenderUtil::genFromData(const stbi_uc* buffer, int bufferSize, GLenum format) {
     int width, height, channels;
 
-    auto start = glfwGetTime();
-
     unsigned char* data = stbi_load_from_memory(
         buffer,
         bufferSize,
         &width, &height, &channels,
         STBI_rgb_alpha
     );
-
-    cout << "testing  " << glfwGetTime() - start << " seconds!" << endl;
 
     GLuint textureID;
     glGenTextures(1, &textureID);
@@ -267,8 +263,6 @@ void RenderUtil::genOrLoadAtlas(bool forceRegenerate) {
 
     std::string folder = "output/atlases/";
 
-    cout << "test " << glfwGetTime() << " seconds to start!" << endl;
-
     std::vector<std::future<void>> futures;
     std::mutex atlasMutex;
 
@@ -403,11 +397,7 @@ void RenderUtil::genOrLoadAtlas(bool forceRegenerate) {
         }));
     }
 
-    cout << "test2 " << glfwGetTime() << " seconds to start!" << endl;
-
     for (auto &f: futures) {
         f.get();
     }
-
-    cout << "test3 " << glfwGetTime() << " seconds to start!" << endl;
 }

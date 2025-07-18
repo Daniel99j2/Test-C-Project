@@ -19,26 +19,25 @@ public:
 	GLuint normal;
 	std::string name;
 
-	Material(const aiMaterial* other, const aiScene* scene) {
-		base = get(*other, aiTextureType_DIFFUSE, AI_MATKEY_COLOR_DIFFUSE, scene);
-		metal = get(*other, aiTextureType_METALNESS, AI_MATKEY_METALLIC_FACTOR, scene);
-		rough = get(*other, aiTextureType_DIFFUSE_ROUGHNESS, AI_MATKEY_ROUGHNESS_FACTOR, scene);
-		emissive = get(*other, aiTextureType_EMISSIVE, AI_MATKEY_EMISSIVE_INTENSITY, scene);
-		normal = get(*other, aiTextureType_NORMALS, "", 0, 0, scene);
+	explicit Material(const aiMaterial* other, std::map<std::string, GLuint> textures) {
+		base = get(*other, aiTextureType_DIFFUSE, AI_MATKEY_COLOR_DIFFUSE, textures);
+		metal = get(*other, aiTextureType_METALNESS, AI_MATKEY_METALLIC_FACTOR, textures);
+		rough = get(*other, aiTextureType_DIFFUSE_ROUGHNESS, AI_MATKEY_ROUGHNESS_FACTOR, textures);
+		emissive = get(*other, aiTextureType_EMISSIVE, AI_MATKEY_EMISSIVE_INTENSITY, textures);
+		normal = get(*other, aiTextureType_NORMALS, "", 0, 0, textures);
 		name = other->GetName().C_Str();
 	}
 
+	Material() {};
+
 private:
 
-	static GLuint get(const aiMaterial &material, aiTextureType textureType, const char * str, int scene1, int i, const aiScene* scene) {
+	static GLuint get(const aiMaterial &material, aiTextureType textureType, const char * str, int scene1, int i, std::map<std::string, GLuint> textures) {
 		aiString texturePath;
 		auto format = aiTextureType_DIFFUSE ? GL_SRGB : GL_RGB;
 
 		if (material.GetTexture(textureType, 0, &texturePath) == AI_SUCCESS) {
-
-			aiTexture* texture = scene->mTextures[std::atoi(texturePath.C_Str() + 1)];
-
-			return RenderUtil::genFromData(reinterpret_cast<stbi_uc*>(texture->pcData), texture->mWidth, format);
+			return textures[texturePath.C_Str()];
 		}
 
 		aiColor4D fallback = {0xAA/255.0f,0xFF/255.0f,0xb7/255.0f,1};

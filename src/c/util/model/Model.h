@@ -16,11 +16,10 @@ using namespace std;
 
 class Model {
 public:
-    std::vector<Mesh> meshes;
-    std::vector<Animation> animations;
-    std::vector<CollisionPart> collisions;
-
-    Model(const std::vector<Mesh> &meshes, const std::vector<Animation> &animations, const std::vector<CollisionPart> &collisions) : meshes(meshes), animations(animations), collisions(collisions) {}
+    std::vector<Mesh> meshes = {};
+    std::vector<Animation> animations = {};
+    std::vector<CollisionPart> collisions = {};
+    map<std::string, Material> materials = {};
 
     Model() = default;
 
@@ -34,12 +33,6 @@ public:
     void drawBasic(Shader &shader) const {
         for (const auto& mesh : meshes) {
             mesh.draw(shader, glm::mat4(1));
-        }
-    }
-
-    void setup() {
-        for (auto& mesh : meshes) {
-            mesh.setupMesh();
         }
     }
 };

@@ -40,29 +40,24 @@ public:
     vector<Vertex> vertices;
     vector<unsigned int> indices;
     string name;
-    Material material;
+    Material* material;
 
-    Mesh(const vector<Vertex> &vertices, const vector<unsigned int> &indices, const string &name, const Material &material)
+    Mesh(const vector<Vertex> &vertices, const vector<unsigned int> &indices, const string &name, Material* material)
         : vertices(vertices), indices(indices), name(name), material(material) {
-
+        setupMesh();
     };
 
     void draw(const Shader &shader, const glm::mat4 &transform) const {
         glActiveTexture(GL_TEXTURE5);
-        glBindTexture(GL_TEXTURE_2D, material.base);
+        glBindTexture(GL_TEXTURE_2D, material->base);
         glActiveTexture(GL_TEXTURE6);
-        glBindTexture(GL_TEXTURE_2D, material.metal);
+        glBindTexture(GL_TEXTURE_2D, material->metal);
         glActiveTexture(GL_TEXTURE7);
-        glBindTexture(GL_TEXTURE_2D, material.emissive);
+        glBindTexture(GL_TEXTURE_2D, material->emissive);
         glActiveTexture(GL_TEXTURE8);
-        glBindTexture(GL_TEXTURE_2D, material.rough);
+        glBindTexture(GL_TEXTURE_2D, material->rough);
         glActiveTexture(GL_TEXTURE9);
-        glBindTexture(GL_TEXTURE_2D, material.normal);
-
-        GLenum err = glGetError();
-        if (err != GL_NO_ERROR) {
-            std::cerr << "OpenGL error after texture upload: " << err << std::endl;
-        }
+        glBindTexture(GL_TEXTURE_2D, material->normal);
 
         shader.setInt("material.base", 5);
         shader.setInt("material.metal", 6);
@@ -75,6 +70,9 @@ public:
         glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, nullptr);
         glBindVertexArray(0);
     }
+
+private:
+    unsigned int VAO, VBO, EBO;
 
     void setupMesh() {
         glGenVertexArrays(1, &VAO);
@@ -110,7 +108,4 @@ public:
 
         glBindVertexArray(0);
     }
-
-private:
-    unsigned int VAO, VBO, EBO;
 };

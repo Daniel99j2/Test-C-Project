@@ -87,8 +87,6 @@ int main(int argc, char *argv[]) {
 	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 	glfwSetCursorPosCallback(window, mouse_callback);
 
-	std::cout << glGetString(GL_VERSION) << std::endl;
-
 	glEnable(GL_DEPTH_TEST);
 
 	if (const GLenum err = glewInit(); err != GLEW_OK) {
@@ -207,7 +205,7 @@ int main(int argc, char *argv[]) {
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorBuffer, 0);
 	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rboDepth);
 	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-		std::cout << "Framebuffer not complete!" << std::endl;
+		std::cerr << "[WARN] Framebuffer not complete!" << std::endl;
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 	GLFWimage *icon = RenderUtil::getImageData("src/resources/textures/ui/icon");

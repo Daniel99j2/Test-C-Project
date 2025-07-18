@@ -98,30 +98,73 @@ Model ModelUtil::loadModelFromFile(const std::string& path) {
         return {};
     }
 
-    std::vector<Mesh> meshes;
-    std::vector<CollisionPart> collisionParts;
-    std::vector<Animation> animations;
-    std::vector<Material> materials;
+    Model modelOutput;
 
-    for (int i = 0; i < scene->mNumMaterials; ++i) {
-        materials.emplace_back(scene->mMaterials[i], scene);
+    struct TextureData {
+        int width, height, channels;
+        unsigned char *data;
+        std::string name;
+    };
+
+    std::vector<std::future<void>> textureDataFutures;
+
+    std::vector<TextureData> textureData;
+
+    std::map<std::string, GLuint> textures;
+
+    textureData.resize(scene->mNumTextures);
+
+    for (int i = 0; i < scene->mNumTextures; ++i) {
+        textureDataFutures.push_back(std::async(std::launch::async, [i, &scene, &textureData]() {
+            int w, h, c;
+            unsigned char *data = stbi_load_from_memory(
+                reinterpret_cast<stbi_uc*>(scene->mTextures[i]->pcData),
+                scene->mTextures[i]->mWidth,
+                &w, &h, &c,
+                STBI_rgb_alpha);
+
+            textureData[i] = TextureData(w, h, c, data, ("*" + std::to_string(i)));
+            //scene->mTextures[i]->mFilename.C_Str()
+        }));
     }
 
-    cout << materials.size() << endl;
+    for (auto& f : textureDataFutures) f.get();
+
+    for (auto& t : textureData) {
+        GLuint textureID;
+        glGenTextures(1, &textureID);
+        glBindTexture(GL_TEXTURE_2D, textureID);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB, t.width, t.height, 0,
+                     GL_RGBA, GL_UNSIGNED_BYTE, t.data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        stbi_image_free(t.data);
+
+        textures[t.name] = textureID;
+    }
+
+    for (int i = 0; i < scene->mNumMaterials; ++i) {
+        modelOutput.materials[scene->mMaterials[i]->GetName().C_Str()] = Material(scene->mMaterials[i], textures);
+    }
 
     for (unsigned int i = 0; i < scene->mNumMeshes; ++i) {
         aiMesh* aiMesh = scene->mMeshes[i];
         auto vertices = processVertices(aiMesh);
         auto indices = processIndices(aiMesh);
-        Mesh mesh(vertices, indices, aiMesh->mName.C_Str(), materials[aiMesh->mMaterialIndex]);
-        meshes.push_back(mesh);
+        Mesh mesh(vertices, indices, aiMesh->mName.C_Str(), &modelOutput.materials[scene->mMaterials[aiMesh->mMaterialIndex]->GetName().C_Str()]);
+        modelOutput.meshes.push_back(mesh);
 
         CollisionPart collision;
 
         collision.start = glm::vec3(aiMesh->mAABB.mMin.x, aiMesh->mAABB.mMin.y, aiMesh->mAABB.mMin.z);
         collision.end = glm::vec3(aiMesh->mAABB.mMax.x, aiMesh->mAABB.mMax.y, aiMesh->mAABB.mMax.z);
 
-        collisionParts.push_back(collision);
+        modelOutput.collisions.push_back(collision);
     }
 
     if (scene->HasAnimations())
@@ -177,18 +220,13 @@ Model ModelUtil::loadModelFromFile(const std::string& path) {
         }
         out.keyframes = keyframes;
 
-        animations.push_back(out);
+        modelOutput.animations.push_back(out);
     }
 
-    return Model(meshes, animations, collisionParts);
+    return modelOutput;
 }
 
 void ModelUtil::loadModels() {
-    cout << "test models1 " << glfwGetTime() << " seconds to start!" << endl;
-
-    std::vector<future<void>> futures;
-    std::mutex modelMutex;
-
     for (auto &entry: std::filesystem::recursive_directory_iterator("src/resources/models/")) {
         std::string extension = entry.path().extension().string();
         if (extension == ".gltf" || extension == ".glb") {
@@ -207,27 +245,8 @@ void ModelUtil::loadModels() {
             }
 
             models[out] = loadModelFromFile(out + extension);
-
-            // futures.push_back(std::async(std::launch::async, [&, out, extension]() {
-            //     Model model = loadModelFromFile(out + extension);
-            //
-            //     std::scoped_lock lock(modelMutex);
-            //     models[out] = std::move(model);
-            // }));
         }
     }
-
-    cout << "test models2 " << glfwGetTime() << " seconds to start!" << endl;
-
-    for (auto &f : futures) {
-        f.get();
-    }
-
-    for (auto& m : models) {
-        m.second.setup();
-    }
-
-    cout << "test models3 " << glfwGetTime() << " seconds to start!" << endl;
 }
 
 Model* ModelUtil::getModel(const string &name) {

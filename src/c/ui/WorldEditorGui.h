@@ -71,14 +71,14 @@ struct WorldGameObjectsEditor {
 						if (ImGui::TreeNode((void *) (intptr_t) i, "Mesh %d: %s", i, mesh.name.c_str())) {
 							ImGui::Text("Vertices: %d", static_cast<int>(mesh.vertices.size()));
 							ImGui::Text("Indices: %d", static_cast<int>(mesh.indices.size()));
-							ImGui::Text("Material: %s", mesh.material.name.c_str());
+							ImGui::Text("Material: %s", mesh.material->name.c_str());
 
 							constexpr float fullSize = 256.0f;
 
 							int buttonId;
 
 							auto showPreview = [fullSize](const char* label, GLuint tex, bool& expanded, string name) {
-								ImGui::Text("%s", label);
+								ImGui::Text("%s (%i):", label, tex);
 								ImGui::SameLine();
 								if (ImGui::ImageButton(
 										("mat_preview_"+name).c_str(),        // string ID - unique per button!
@@ -100,11 +100,11 @@ struct WorldGameObjectsEditor {
 							static std::unordered_map<std::string, bool> previewExpanded;
 							std::string uid = mesh.name + std::to_string(i); // Unique per mesh
 
-							showPreview("Base", mesh.material.base, previewExpanded[uid + "_base"], uid + "_base");
-							showPreview("Metallic", mesh.material.metal, previewExpanded[uid + "_metal"], uid + "metal");
-							showPreview("Roughness", mesh.material.rough, previewExpanded[uid + "_rough"], uid + "rough");
-							showPreview("Emissive", mesh.material.emissive, previewExpanded[uid + "_emissive"], uid + "emissive");
-							showPreview("Normal", mesh.material.normal, previewExpanded[uid + "_normal"], uid + "normal");
+							showPreview("Base", mesh.material->base, previewExpanded[uid + "_base"], uid + "_base");
+							showPreview("Metallic", mesh.material->metal, previewExpanded[uid + "_metal"], uid + "metal");
+							showPreview("Roughness", mesh.material->rough, previewExpanded[uid + "_rough"], uid + "rough");
+							showPreview("Emissive", mesh.material->emissive, previewExpanded[uid + "_emissive"], uid + "emissive");
+							showPreview("Normal", mesh.material->normal, previewExpanded[uid + "_normal"], uid + "normal");
 
 							ImGui::TreePop();
 						}
